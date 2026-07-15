@@ -17,7 +17,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     const settings = await prisma.settings.findUnique({ where: { id: 1 } });
 
     const pdfBuffer = await renderToBuffer(
-      createElement(OrderDocument, { order, settings: settings || {} })
+      createElement(OrderDocument as any, { order, settings: settings || {} }) as any
     );
 
     return new NextResponse(pdfBuffer, {

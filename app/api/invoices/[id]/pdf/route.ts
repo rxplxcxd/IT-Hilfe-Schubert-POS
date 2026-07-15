@@ -23,7 +23,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
     }
 
     const pdfBuffer = await renderToBuffer(
-      createElement(InvoiceDocument, { invoice, settings })
+      createElement(InvoiceDocument as any, { invoice, settings }) as any
     );
 
     return new NextResponse(pdfBuffer, {

@@ -115,3 +115,16 @@ export function newAdminUserHtml(d: AdminUserEmailData) {
     <p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#334155;">Bitte pruefen Sie, ob dieser Zugriff berechtigt ist.</p>`;
   return layout('Neuer Benutzer', inner, 'Automatische Benachrichtigung aus Ihrem POS-System.');
 }
+
+/** Info an den Mitarbeiter: Zugang wurde freigeschaltet */
+export function accessApprovedHtml(d: { name?: string }) {
+  const inner = `
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">Hallo <strong>${d.name || ''}</strong>,</p>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#334155;">gute Nachrichten! Dein Zugang zum Kassensystem von <strong>IT-Hilfe Schubert</strong> wurde soeben vom Administrator freigeschaltet.</p>
+    <div style="background:#ecfdf5;border:1px solid #d1fae5;border-radius:14px;padding:20px 22px;margin:0 0 20px;">
+      <div style="font-size:13px;color:#059669;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Zugang aktiv</div>
+      <p style="margin:0;font-size:15px;line-height:1.6;color:#065f46;">Du kannst dich ab sofort mit deiner E-Mail-Adresse und deinem Passwort anmelden.</p>
+    </div>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">Viel Erfolg und gutes Gelingen!</p>`;
+  return layout('Zugang freigeschaltet', inner, 'Automatische Benachrichtigung aus dem POS-System von IT-Hilfe Schubert.');
+}

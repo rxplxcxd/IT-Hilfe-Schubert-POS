@@ -29,6 +29,25 @@ function LoginForm() {
         setLoading(false);
         return;
       }
+
+      // Freigabe-Status prüfen. Nicht freigegebene Konten werden sofort abgemeldet.
+      try {
+        const res = await fetch('/api/auth/access', { cache: 'no-store' });
+        const j = await res.json();
+        if (j?.authenticated && j?.status && j.status !== 'APPROVED') {
+          await supabase.auth.signOut();
+          if (j.status === 'REJECTED') {
+            setError('Dein Zugang wurde abgelehnt. Bitte kontaktiere den Administrator.');
+          } else {
+            setError('Dein Konto wartet noch auf die Freigabe durch den Administrator.');
+          }
+          setLoading(false);
+          return;
+        }
+      } catch {
+        /* im Zweifel Anmeldung zulassen; die Startseite prüft den Status erneut */
+      }
+
       router.replace(redirectTo);
       router.refresh();
     } catch {

@@ -38,20 +38,36 @@ export default function RegisterPage() {
         setLoading(false);
         return;
       }
-      // Inhaber ueber neue Registrierung informieren (best-effort, nicht blockierend)
-      fetch('/api/notify/new-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      }).catch(() => {});
-      // Falls E-Mail-Bestätigung aktiv ist, gibt es noch keine Session.
-      if (data.session) {
+      // Freigabe-Datensatz anlegen. Erster Nutzer => Admin (APPROVED), sonst PENDING.
+      let approved = false;
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const j = await res.json();
+        approved = j?.status === 'APPROVED';
+      } catch {
+        /* nicht blockierend */
+      }
+
+      if (approved && data.session) {
+        // Erster Nutzer / Administrator: direkter Zugang
         router.replace('/');
         router.refresh();
-      } else {
-        setInfo('Konto erstellt. Bitte bestätige deine E-Mail-Adresse und melde dich anschließend an.');
-        setLoading(false);
+        return;
       }
+
+      // Noch nicht freigegeben: falls bereits eine Session besteht, wieder abmelden,
+      // damit ohne Freigabe kein Zugriff moeglich ist.
+      if (data.session) {
+        try {
+          await supabase.auth.signOut();
+        } catch {}
+      }
+      setInfo('Deine Registrierung wurde eingereicht und muss noch vom Administrator freigegeben werden. Sobald dein Zugang aktiv ist, erhältst du eine E-Mail und kannst dich anmelden.');
+      setLoading(false);
     } catch {
       setError('Ein Fehler ist aufgetreten.');
       setLoading(false);
@@ -64,7 +80,7 @@ export default function RegisterPage() {
         <div className="text-center mb-8">
           <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-blue-700 flex items-center justify-center text-white text-2xl font-bold">IT</div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Konto erstellen</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Der erste registrierte Nutzer wird automatisch Administrator.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Neue Mitarbeiter-Zugänge müssen vom Administrator freigegeben werden.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">

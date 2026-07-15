@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Save, Upload, Building2, CreditCard, Mail, FileText, Image as ImageIcon, CheckCircle2, Globe, Sun, Moon, Monitor, ClipboardList, MapPin } from 'lucide-react';
+import { Save, Upload, Building2, CreditCard, Mail, FileText, Image as ImageIcon, CheckCircle2, Globe, Sun, Moon, Monitor, ClipboardList, MapPin, Users } from 'lucide-react';
+import { TeamSettings } from './team-settings';
 import { useTheme } from 'next-themes';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,7 @@ interface SettingsData {
   hqCity: string;
 }
 
-export function SettingsView() {
+export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: boolean; initialSection?: string } = {}) {
   const [settings, setSettings] = useState<SettingsData>({
     companyName: 'IT-Hilfe Schubert', ownerName: 'Leon Schubert',
     street: '', zip: '', city: '', phone: '', email: '',
@@ -46,7 +47,11 @@ export function SettingsView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [activeSection, setActiveSection] = useState<string>('company');
+  const [activeSection, setActiveSection] = useState<string>(initialSection || 'company');
+
+  useEffect(() => {
+    if (initialSection) setActiveSection(initialSection);
+  }, [initialSection]);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -127,6 +132,7 @@ export function SettingsView() {
     { id: 'order', label: 'Auftrag', icon: ClipboardList },
     { id: 'bank', label: 'Bank', icon: CreditCard },
     { id: 'gmail', label: 'Gmail', icon: Globe },
+    ...(isAdmin ? [{ id: 'team', label: 'Team', icon: Users }] : []),
     { id: 'theme', label: 'Design', icon: Sun },
   ];
 
@@ -296,6 +302,8 @@ export function SettingsView() {
         </Card>
       )}
 
+      {activeSection === 'team' && isAdmin && <TeamSettings />}
+
       {activeSection === 'theme' && (
         <Card className="shadow-sm">
           <CardContent className="p-4 space-y-4">
@@ -336,7 +344,7 @@ export function SettingsView() {
         </Card>
       )}
 
-      {activeSection !== 'theme' && (
+      {activeSection !== 'theme' && activeSection !== 'team' && (
         <Button onClick={handleSave} disabled={saving} className="w-full gap-2">
           <Save className="w-4 h-4" />
         {saving ? 'Wird gespeichert...' : 'Einstellungen speichern'}

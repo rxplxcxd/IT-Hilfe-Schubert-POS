@@ -1,0 +1,349 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider  = "postgresql"
+    url       = env("DATABASE_URL")
+    directUrl = env("DIRECT_URL")
+}
+
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  firstName String
+  lastName  String
+  street    String   @default("")
+  houseNr   String   @default("")
+  zip       String   @default("")
+  city      String   @default("")
+  phone     String
+  email     String   @default("")
+  zone      Int      @default(1)
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  invoices  Invoice[]
+  subscriptions Subscription[]
+  workLogs  WorkLog[]
+  devices   DeviceInventory[]
+  quotes    Quote[]
+  reminders Reminder[]
+  orders    Order[]
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String   @default("")
+  category    String   // FIXED, HOURLY, SUBSCRIPTION
+  price       Float
+  unit        String   @default("") // e.g. "15 Min", "Monat", "Jahr"
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  invoiceItems InvoiceItem[]
+}
+
+model Invoice {
+  id            Int      @id @default(autoincrement())
+  invoiceNumber String   @unique
+  caseNumber    String   @default("") // Unified case number V-YYYY-XXX
+  customerId    Int
+  customer      Customer @relation(fields: [customerId], references: [id])
+  items         InvoiceItem[]
+  subtotal      Float    @default(0)
+  discount      Float    @default(0)
+  travelCost    Float    @default(0)
+  total         Float    @default(0)
+  paymentMethod String   @default("BAR") // BAR, KARTE
+  status        String   @default("OFFEN") // OFFEN, BEZAHLT, STORNIERT
+  paidAt        DateTime?
+  notes         String   @default("")
+  pdfPath       String   @default("")
+  emailSentAt   DateTime?
+  // Storno fields
+  isCancellation     Boolean  @default(false) // true = this IS a Stornorechnung
+  cancelsInvoiceId   Int?     // ID of the original invoice this cancels
+  cancelledByInvoiceId Int?   // ID of the Stornorechnung that cancelled this
+  cancellationReason String   @default("")
+  cancelledAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([caseNumber])
+}
+
+model InvoiceItem {
+  id        Int     @id @default(autoincrement())
+  invoiceId Int
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id])
+  name      String
+  quantity  Int     @default(1)
+  unitPrice Float
+  total     Float
+}
+
+model Subscription {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+  type       String   // MONTHLY, YEARLY
+  startDate  DateTime @default(now())
+  endDate    DateTime?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([customerId, active])
+}
+
+model WorkLog {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id])
+  invoiceId   Int?
+  title       String
+  description String   @default("")
+  photos      WorkLogPhoto[]
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([date])
+}
+
+model WorkLogPhoto {
+  id          Int      @id @default(autoincrement())
+  workLogId   Int
+  workLog     WorkLog  @relation(fields: [workLogId], references: [id], onDelete: Cascade)
+  filePath    String
+  fileUrl     String
+  isPublic    Boolean  @default(true)
+  caption     String   @default("")
+  createdAt   DateTime @default(now())
+}
+
+model DeviceInventory {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id])
+  deviceType  String   @default("") // PC, Laptop, Smartphone, Tablet, Drucker, Router, etc.
+  brand       String   @default("")
+  model       String   @default("")
+  serialNr    String   @default("")
+  password    String   @default("")
+  wifiPassword String  @default("")
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model Expense {
+  id          Int      @id @default(autoincrement())
+  type        String   // EINNAHME, AUSGABE
+  category    String   @default("") // Benzin, Hardware, Software, Lizenzen, etc.
+  description String   @default("")
+  amount      Float
+  date        DateTime @default(now())
+  reference   String   @default("") // e.g. invoice number or receipt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([type])
+  @@index([date])
+}
+
+model Quote {
+  id            Int      @id @default(autoincrement())
+  quoteNumber   String   @unique
+  caseNumber    String   @default("") // Unified case number V-YYYY-XXX
+  customerId    Int
+  customer      Customer @relation(fields: [customerId], references: [id])
+  items         QuoteItem[]
+  subtotal      Float    @default(0)
+  discount      Float    @default(0)
+  travelCost    Float    @default(0)
+  total         Float    @default(0)
+  status        String   @default("ENTWURF") // ENTWURF, GESENDET, ANGENOMMEN, ABGELEHNT, STORNIERT
+  validUntil    DateTime?
+  notes         String   @default("")
+  convertedInvoiceId Int?
+  emailSentAt   DateTime?
+  acceptedAt    DateTime?
+  // Storno fields
+  cancelledAt        DateTime?
+  cancellationReason String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([customerId])
+  @@index([caseNumber])
+}
+
+model QuoteItem {
+  id        Int     @id @default(autoincrement())
+  quoteId   Int
+  quote     Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId Int?
+  name      String
+  quantity  Int     @default(1)
+  unitPrice Float
+  total     Float
+}
+
+model Reminder {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id])
+  type        String   // FOLLOW_UP, SCHUTZBRIEF_RENEWAL, SECURITY_CHECK, CUSTOM
+  title       String
+  message     String   @default("")
+  dueDate     DateTime
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([dueDate, completed])
+  @@index([customerId])
+}
+
+model Order {
+  id              Int      @id @default(autoincrement())
+  orderNumber     String   @unique
+  caseNumber      String   @default("") // Unified case number V-YYYY-XXX
+  customerId      Int
+  customer        Customer @relation(fields: [customerId], references: [id])
+  status          String   @default("OFFEN") // OFFEN, IN_BEARBEITUNG, ABGESCHLOSSEN, STORNIERT
+  title           String   @default("")
+  description     String   @default("")
+  // Signature (before job start - liability disclaimer)
+  liabilitySignature   String  @default("") // cloud storage ref
+  liabilitySigned      Boolean @default(false)
+  liabilitySignedAt    DateTime?
+  disclaimerText       String  @default("") // saved disclaimer text at time of signing
+  customDocuments      String  @default("[]") // JSON array of {name, signed, signedAt}
+  // Work phase
+  startedAt       DateTime?
+  workNotes       String   @default("")
+  photos          OrderPhoto[]
+  // Completion
+  completedAt     DateTime?
+  completionNotes String   @default("")
+  completionPdfPath    String  @default("") // cloud storage ref for protocol PDF
+  handoverSignature    String  @default("") // base64 PNG
+  handoverSigned       Boolean @default(false)
+  handoverSignedAt     DateTime?
+  // Route / trip data
+  routeStartType       String  @default("") // gps, manual
+  routeStartAddress    String  @default("")
+  routeEndAddress      String  @default("")
+  routeDistanceKm      Float   @default(0)
+  routeDurationMin     Int     @default(0)
+  routeCalculatedAt    DateTime?
+  // Storno
+  cancelledAt          DateTime?
+  cancellationReason   String  @default("")
+  // Linked invoice
+  convertedInvoiceId   Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([customerId])
+  @@index([createdAt])
+  @@index([caseNumber])
+}
+
+model OrderPhoto {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  filePath    String
+  fileUrl     String
+  isPublic    Boolean  @default(true)
+  caption     String   @default("")
+  photoType   String   @default("ARBEIT") // VORHER, NACHHER, ARBEIT
+  createdAt   DateTime @default(now())
+}
+
+model GmailToken {
+  id           Int      @id @default(1)
+  accessToken  String   @default("")
+  refreshToken String   @default("")
+  expiresAt    DateTime?
+  email        String   @default("")
+  updatedAt    DateTime @updatedAt @default(now())
+}
+
+model Settings {
+  id             Int    @id @default(1)
+  companyName    String @default("IT-Hilfe Schubert")
+  ownerName      String @default("Leon Schubert")
+  street         String @default("")
+  zip            String @default("")
+  city           String @default("")
+  phone          String @default("")
+  email          String @default("")
+  taxInfo        String @default("Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.")
+  invoiceHeader  String @default("")
+  logoPath       String @default("")
+  logoIsPublic   Boolean @default(true)
+  resendApiKey   String @default("")
+  bankName       String @default("")
+  iban           String @default("")
+  bic            String @default("")
+  googleClientId     String @default("")
+  googleClientSecret String @default("")
+  // Default disclaimer text for orders
+  disclaimerDefaultText String @default("Der Kunde bestätigt, dass ein aktuelles Backup aller relevanten Daten existiert. Für etwaige Datenverluste während der Reparatur/Wartung wird keine Haftung übernommen. Der Kunde trägt das volle Risiko für nicht gesicherte Daten.")
+  // Company HQ address for distance calculation
+  hqStreet       String @default("Alte Schulstr 4")
+  hqZip          String @default("02694")
+  hqCity         String @default("Malschwitz")
+  // Counter for unified case numbers
+  nextCaseNumber Int    @default(1)
+  // Counter for cancellation invoices
+  nextStornoNumber Int  @default(1)
+  updatedAt      DateTime @updatedAt @default(now())
+}
+
+model TimeSlot {
+  id          Int      @id @default(autoincrement())
+  dayOfWeek   Int      // 0=So, 1=Mo, 2=Di, 3=Mi, 4=Do, 5=Fr, 6=Sa
+  startTime   String   // "09:00"
+  endTime     String   // "10:00"
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([dayOfWeek, active])
+}
+
+model Appointment {
+  id            Int      @id @default(autoincrement())
+  date          DateTime // Datum des Termins
+  startTime     String   // "09:00"
+  endTime       String   // "10:00"
+  customerName  String
+  customerPhone String
+  customerEmail String   @default("")
+  address       String   @default("")
+  description   String   @default("")
+  status        String   @default("OFFEN") // OFFEN, BESTAETIGT, ABGESAGT, ERLEDIGT
+  notes         String   @default("") // interne Notizen
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date, status])
+  @@index([status])
+}

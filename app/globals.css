@@ -92,3 +92,87 @@ html, body {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 16px);
 }
+
+/* ===================== Animationen & Micro-Interactions ===================== */
+@keyframes animFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes animFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes animScaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes animSlideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes animSlot {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes animPulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35); }
+  50% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+}
+@keyframes animShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.anim-fade-in { animation: animFadeIn 0.5s ease-out both; }
+.anim-fade-up { animation: animFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-fade-up-d1 { animation: animFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both; }
+.anim-fade-up-d2 { animation: animFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both; }
+.anim-fade-up-d3 { animation: animFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both; }
+.anim-fade-up-d4 { animation: animFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.32s both; }
+.anim-scale-in { animation: animScaleIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-slide-down { animation: animSlideDown 0.4s ease-out both; }
+.anim-slot { animation: animSlot 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-pulse-glow { animation: animPulseGlow 2s ease-in-out infinite; }
+
+/* Micro-Interactions: sanfte Hover-/Tap-Effekte */
+.hover-lift {
+  transition: transform var(--duration-normal, 250ms) cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow var(--duration-normal, 250ms) cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+.hover-lift:active { transform: translateY(-1px) scale(0.995); }
+
+.press-scale { transition: transform 120ms ease; }
+.press-scale:active { transform: scale(0.96); }
+
+.card-interactive {
+  transition: transform var(--duration-normal, 250ms) cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow var(--duration-normal, 250ms) cubic-bezier(0.22, 1, 0.36, 1),
+              border-color var(--duration-normal, 250ms) ease;
+}
+.card-interactive:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Skeleton-Shimmer */
+.shimmer {
+  background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 37%, rgba(0,0,0,0.04) 63%);
+  background-size: 200% 100%;
+  animation: animShimmer 1.4s ease-in-out infinite;
+}
+
+/* Aktivitäts-Ticker */
+@keyframes animTickerDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+.ticker-dot { animation: animTickerDot 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}

@@ -38,6 +38,12 @@ export default function RegisterPage() {
         setLoading(false);
         return;
       }
+      // Inhaber ueber neue Registrierung informieren (best-effort, nicht blockierend)
+      fetch('/api/notify/new-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      }).catch(() => {});
       // Falls E-Mail-Bestätigung aktiv ist, gibt es noch keine Session.
       if (data.session) {
         router.replace('/');

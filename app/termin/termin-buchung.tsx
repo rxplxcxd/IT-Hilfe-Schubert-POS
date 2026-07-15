@@ -122,7 +122,7 @@ export function TerminBuchung({ companyName, ownerName, phone, email, logoUrl }:
         {/* Hero */}
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-800" />
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'https://i.pinimg.com/736x/ea/05/1e/ea051e2a2f9ce9309a32c8ae150e9881.jpg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
+          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.25) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
           <div className="relative px-6 py-16 text-center text-white anim-fade-in">
             {logoUrl && <img src={logoUrl} alt="Logo" className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-white/20 p-2 object-contain" />}
             <h1 className="font-display text-3xl font-bold mb-2">{companyName}</h1>

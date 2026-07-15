@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { sendEmail } from '@/lib/email';
+import { appointmentCustomerHtml, appointmentAdminHtml } from '@/lib/email-templates';
 
 // GET: Termine laden (admin) oder verfügbare Slots für ein Datum (public)
 export async function GET(request: Request) {
@@ -97,6 +99,47 @@ export async function POST(request: Request) {
         description: description || '',
       },
     });
+
+    // Automatische E-Mails (Resend) - Fehler blockieren die Buchung nie
+    try {
+      const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+      const emailData = {
+        customerName,
+        customerPhone,
+        customerEmail: customerEmail || '',
+        address: address || '',
+        description: description || '',
+        date: bookingDate,
+        startTime,
+        endTime,
+        companyName: settings?.companyName || 'IT-Hilfe Schubert',
+        ownerName: settings?.ownerName || 'Leon Schubert',
+        phone: settings?.phone || '',
+      };
+
+      // Bestaetigung an den Kunden (nur wenn E-Mail angegeben)
+      if (customerEmail) {
+        await sendEmail({
+          to: customerEmail,
+          subject: `Terminanfrage erhalten - ${emailData.companyName}`,
+          html: appointmentCustomerHtml(emailData),
+          replyTo: settings?.email || undefined,
+        }).catch((e) => console.error('Kunden-E-Mail fehlgeschlagen:', e?.message));
+      }
+
+      // Benachrichtigung an den Inhaber
+      const adminEmail = settings?.email;
+      if (adminEmail) {
+        await sendEmail({
+          to: adminEmail,
+          subject: `Neue Terminbuchung: ${customerName} am ${bookingDate.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })}`,
+          html: appointmentAdminHtml(emailData),
+          replyTo: customerEmail || undefined,
+        }).catch((e) => console.error('Admin-E-Mail fehlgeschlagen:', e?.message));
+      }
+    } catch (mailErr: any) {
+      console.error('E-Mail-Versand uebersprungen:', mailErr?.message);
+    }
 
     return NextResponse.json(appointment, { status: 201 });
   } catch (error: any) {

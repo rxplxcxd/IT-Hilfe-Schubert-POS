@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { LayoutDashboard, Users, ShoppingCart, FileText, Settings, Mail, Package, Wallet, ClipboardList, CalendarDays, LogOut } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -92,30 +93,40 @@ export function AppShell() {
       </header>
 
       <main className="flex-1 overflow-y-auto">
-        {activeTab === 'dashboard' && (
-          <DashboardView
-            onNavigate={navigateTo}
-            onViewInvoice={(id: number) => { setViewInvoiceId(id); setActiveTab('belege' as TabId); }}
-          />
-        )}
-        {activeTab === 'customers' && (
-          <CustomersView
-            editCustomerId={editCustomerId}
-            onEditCustomer={setEditCustomerId}
-            onViewCustomerDetail={(id: number) => setViewCustomerDetailId(id)}
-          />
-        )}
-        {activeTab === 'booking' && (
-          <BookingView onInvoiceCreated={(id: number) => { setViewInvoiceId(id); setActiveTab('belege' as TabId); }} />
-        )}
-        {activeTab === 'belege' && (
-          <BelegeHubView viewInvoiceId={viewInvoiceId} onViewInvoice={setViewInvoiceId} />
-        )}
-        {activeTab === 'email' && <EmailView />}
-        {activeTab === 'finances' && <FinancesView />}
-        {activeTab === 'products' && <ProductsView />}
-        {activeTab === 'appointments' && <AppointmentsView />}
-        {activeTab === 'settings' && <SettingsView />}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] as any }}
+          >
+            {activeTab === 'dashboard' && (
+              <DashboardView
+                onNavigate={navigateTo}
+                onViewInvoice={(id: number) => { setViewInvoiceId(id); setActiveTab('belege' as TabId); }}
+              />
+            )}
+            {activeTab === 'customers' && (
+              <CustomersView
+                editCustomerId={editCustomerId}
+                onEditCustomer={setEditCustomerId}
+                onViewCustomerDetail={(id: number) => setViewCustomerDetailId(id)}
+              />
+            )}
+            {activeTab === 'booking' && (
+              <BookingView onInvoiceCreated={(id: number) => { setViewInvoiceId(id); setActiveTab('belege' as TabId); }} />
+            )}
+            {activeTab === 'belege' && (
+              <BelegeHubView viewInvoiceId={viewInvoiceId} onViewInvoice={setViewInvoiceId} />
+            )}
+            {activeTab === 'email' && <EmailView />}
+            {activeTab === 'finances' && <FinancesView />}
+            {activeTab === 'products' && <ProductsView />}
+            {activeTab === 'appointments' && <AppointmentsView />}
+            {activeTab === 'settings' && <SettingsView />}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {showMore && (
@@ -142,7 +153,8 @@ export function AppShell() {
             const isActive = activeTab === tab.id;
             return (
               <button key={tab.id} onClick={() => { navigateTo(tab.id); setShowMore(false); }}
-                className={`flex-1 flex flex-col items-center py-2 gap-0.5 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+                className={`relative flex-1 flex flex-col items-center py-2 gap-0.5 press-scale transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+                {isActive && <motion.span layoutId="navIndicator" className="absolute top-0 h-0.5 w-8 rounded-full bg-primary" transition={{ type: 'spring', stiffness: 500, damping: 32 }} />}
                 <Icon className="w-5 h-5" /><span className="text-[10px] font-medium">{tab.label}</span>
               </button>
             );

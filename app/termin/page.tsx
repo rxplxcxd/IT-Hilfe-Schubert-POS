@@ -5,11 +5,7 @@ import { prisma } from '@/lib/prisma';
 
 export default async function TerminPage() {
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-  const logoUrl = settings?.logoPath
-    ? (settings.logoIsPublic
-        ? `https://i.ytimg.com/vi/ecv-19sYL3w/maxresdefault.jpg || 'eu-central-1'}.amazonaws.com/${settings.logoPath}`
-        : '')
-    : '';
+  const logoUrl = settings?.logoPath ?? '';
 
   return (
     <TerminBuchung

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Package, Clock, Shield, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, ChevronDown, ChevronUp, MapPin } from 'lucide-react';
+import { Search, Package, Clock, Shield, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, ChevronDown, ChevronUp, MapPin, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +45,43 @@ export function BookingView({ onInvoiceCreated }: { onInvoiceCreated: (id: numbe
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<string | null>('FIXED');
+  // Schnell-Anlage neues Produkt direkt im Buchungstab
+  const [showNewProduct, setShowNewProduct] = useState(false);
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [npName, setNpName] = useState('');
+  const [npPrice, setNpPrice] = useState('');
+  const [npUnit, setNpUnit] = useState('Pauschal');
+  const [npCategory, setNpCategory] = useState('FIXED');
+  const [npDescription, setNpDescription] = useState('');
+
+  const createProduct = async () => {
+    if (!npName.trim()) { toast.error('Bitte einen Produktnamen eingeben'); return; }
+    if (!npPrice || isNaN(parseFloat(npPrice))) { toast.error('Bitte einen gültigen Preis eingeben'); return; }
+    setSavingProduct(true);
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: npName.trim(),
+          description: npDescription.trim(),
+          category: npCategory,
+          price: parseFloat(npPrice),
+          unit: npUnit.trim() || 'Pauschal',
+        }),
+      });
+      if (!res.ok) throw new Error('Produkt konnte nicht erstellt werden');
+      toast.success('Produkt erstellt!');
+      setNpName(''); setNpPrice(''); setNpUnit('Pauschal'); setNpCategory('FIXED'); setNpDescription('');
+      setShowNewProduct(false);
+      setExpandedCategory(npCategory);
+      await fetchData();
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Fehler beim Erstellen');
+    } finally {
+      setSavingProduct(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -220,6 +257,57 @@ export function BookingView({ onInvoiceCreated }: { onInvoiceCreated: (id: numbe
       )}
 
       {/* Product Catalog */}
+      <div className="flex items-center justify-between">
+        <h3 className="font-display font-semibold text-sm">Produkte</h3>
+        <Button size="sm" variant="outline" className="gap-1" onClick={() => setShowNewProduct((v) => !v)}>
+          {showNewProduct ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+          {showNewProduct ? 'Abbrechen' : 'Neues Produkt'}
+        </Button>
+      </div>
+
+      {showNewProduct && (
+        <Card className="shadow-sm border-primary/30">
+          <CardContent className="p-3 space-y-3">
+            <div>
+              <Label className="text-sm">Name</Label>
+              <Input value={npName} onChange={(e: any) => setNpName(e?.target?.value ?? '')} placeholder="z. B. PC-Reinigung" className="mt-1" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-sm">Preis (€)</Label>
+                <Input type="number" inputMode="decimal" value={npPrice} onChange={(e: any) => setNpPrice(e?.target?.value ?? '')} placeholder="0.00" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm">Einheit</Label>
+                <Input value={npUnit} onChange={(e: any) => setNpUnit(e?.target?.value ?? '')} placeholder="Pauschal / Stunde" className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm">Kategorie</Label>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={() => setNpCategory(cat.key)}
+                    className={`text-xs rounded-lg border p-2 transition-colors ${npCategory === cat.key ? 'border-primary bg-primary/10 font-medium' : 'border-input hover:bg-accent'}`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm">Beschreibung (optional)</Label>
+              <Input value={npDescription} onChange={(e: any) => setNpDescription(e?.target?.value ?? '')} placeholder="Kurze Beschreibung" className="mt-1" />
+            </div>
+            <Button className="w-full gap-1" disabled={savingProduct} onClick={createProduct}>
+              <Plus className="w-4 h-4" /> {savingProduct ? 'Wird gespeichert...' : 'Produkt speichern'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-2">
         {categories.map((cat) => {
           const Icon = cat.icon;

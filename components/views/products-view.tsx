@@ -94,13 +94,16 @@ export function ProductsView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Serverfehler');
+      }
       toast.success(editId ? 'Produkt aktualisiert' : 'Produkt erstellt');
       setEditing(false);
       setEditId(null);
       fetchProducts();
-    } catch {
-      toast.error('Fehler beim Speichern');
+    } catch (e: any) {
+      toast.error(`Fehler beim Speichern: ${e?.message || 'Unbekannt'}`);
     } finally {
       setSaving(false);
     }

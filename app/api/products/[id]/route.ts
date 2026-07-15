@@ -22,7 +22,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     return NextResponse.json(product);
   } catch (error: any) {
     console.error('Product PUT error:', error);
-    return NextResponse.json({ error: 'Fehler beim Aktualisieren' }, { status: 500 });
+    return NextResponse.json({ error: error?.message ?? 'Fehler beim Aktualisieren' }, { status: 500 });
   }
 }
 
@@ -37,6 +37,6 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Product DELETE error:', error);
-    return NextResponse.json({ error: 'Fehler beim Löschen' }, { status: 500 });
+    return NextResponse.json({ error: error?.message ?? 'Fehler beim Löschen' }, { status: 500 });
   }
 }

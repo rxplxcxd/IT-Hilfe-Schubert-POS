@@ -12,7 +12,7 @@ export async function GET() {
     return NextResponse.json(products ?? []);
   } catch (error: any) {
     console.error('Products GET error:', error);
-    return NextResponse.json([], { status: 500 });
+    return NextResponse.json({ error: error?.message ?? 'Fehler beim Laden' }, { status: 500 });
   }
 }
 
@@ -34,6 +34,6 @@ export async function POST(request: Request) {
     return NextResponse.json(product, { status: 201 });
   } catch (error: any) {
     console.error('Products POST error:', error);
-    return NextResponse.json({ error: 'Fehler beim Erstellen' }, { status: 500 });
+    return NextResponse.json({ error: error?.message ?? 'Fehler beim Erstellen' }, { status: 500 });
   }
 }

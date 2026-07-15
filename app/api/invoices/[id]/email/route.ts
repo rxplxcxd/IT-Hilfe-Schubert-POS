@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
+import { renderInvoicePdf } from '@/lib/pdf/render';
 
 function formatDateDE(date: Date | string | null | undefined): string {
   if (!date) return '-';
@@ -80,10 +81,19 @@ export async function POST(_request: Request, { params }: { params: { id: string
       </div>
     `;
 
+    let attachments;
+    try {
+      const pdfBuffer = await renderInvoicePdf(invoice, settings);
+      attachments = [{ filename: `${invoice?.invoiceNumber ?? 'rechnung'}.pdf`, content: pdfBuffer }];
+    } catch (pdfErr) {
+      console.error('PDF-Anhang konnte nicht erstellt werden:', pdfErr);
+    }
+
     await sendEmail({
       to: customerEmail,
       subject: `Rechnung ${invoice?.invoiceNumber ?? ''} - ${settings?.companyName ?? 'IT-Hilfe Schubert'}`,
       html: htmlBody,
+      attachments,
     });
 
     await prisma.invoice.update({

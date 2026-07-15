@@ -1,10 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createElement } from 'react';
-import { renderToBuffer } from '@react-pdf/renderer';
 import { prisma } from '@/lib/prisma';
-import { OrderDocument } from '@/lib/pdf/OrderDocument';
+import { renderOrderPdf } from '@/lib/pdf/render';
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -16,9 +14,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
     const settings = await prisma.settings.findUnique({ where: { id: 1 } });
 
-    const pdfBuffer = await renderToBuffer(
-      createElement(OrderDocument as any, { order, settings: settings || {} }) as any
-    );
+    const pdfBuffer = await renderOrderPdf(order, settings || {});
 
     return new NextResponse(pdfBuffer, {
       headers: {

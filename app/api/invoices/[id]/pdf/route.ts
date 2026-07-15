@@ -1,10 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { createElement } from 'react';
-import { renderToBuffer } from '@react-pdf/renderer';
 import { prisma } from '@/lib/prisma';
-import { InvoiceDocument } from '@/lib/pdf/InvoiceDocument';
+import { renderInvoicePdf } from '@/lib/pdf/render';
 
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
   try {
@@ -22,9 +20,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
       });
     }
 
-    const pdfBuffer = await renderToBuffer(
-      createElement(InvoiceDocument as any, { invoice, settings }) as any
-    );
+    const pdfBuffer = await renderInvoicePdf(invoice, settings);
 
     return new NextResponse(pdfBuffer, {
       headers: {

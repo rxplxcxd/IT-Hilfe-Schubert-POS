@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft, Play, CheckCircle2, Camera, FileText, AlertTriangle,
-  MapPin, Navigation, Clock, Save, Plus, X, Trash2, Upload, ChevronDown, ChevronUp, Car, XCircle, Download, Zap
+  MapPin, Navigation, Clock, Save, Plus, X, Trash2, Upload, ChevronDown, ChevronUp, Car, XCircle, Download, Zap, Mail
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,7 @@ export function OrderDetailView({ orderId, onBack }: { orderId: number; onBack: 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [routeKm, setRouteKm] = useState('');
   const [routeMin, setRouteMin] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -724,6 +725,27 @@ export function OrderDetailView({ orderId, onBack }: { orderId: number; onBack: 
           }}
         >
           <Download className="w-4 h-4" /> {generatingPdf ? 'PDF wird erstellt...' : 'Auftragsprotokoll als PDF'}
+        </Button>
+      )}
+
+      {/* Beleg per E-Mail senden */}
+      {isDone && (
+        <Button
+          variant="outline"
+          className="w-full gap-2"
+          disabled={sendingEmail}
+          onClick={async () => {
+            setSendingEmail(true);
+            try {
+              const res = await fetch(`/api/orders/${order.id}/email`, { method: 'POST' });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(data?.error || 'E-Mail-Fehler');
+              toast.success('Beleg per E-Mail gesendet (PDF im Anhang)');
+            } catch (e: any) { toast.error(e?.message || 'E-Mail-Versand fehlgeschlagen'); }
+            finally { setSendingEmail(false); }
+          }}
+        >
+          <Mail className="w-4 h-4" /> {sendingEmail ? 'E-Mail wird gesendet...' : 'Beleg per E-Mail senden (PDF)'}
         </Button>
       )}
 

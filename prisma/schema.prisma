@@ -5,7 +5,6 @@ generator client {
 datasource db {
     provider  = "postgresql"
     url       = env("DATABASE_URL")
-    directUrl = env("DIRECT_URL")
 }
 
 
@@ -353,6 +352,7 @@ model AppUser {
   email      String    @unique
   name       String    @default("")
   role       String    @default("EMPLOYEE") // ADMIN, EMPLOYEE
+  employeeNo Int?      @unique // fortlaufende Mitarbeiternummer (001, 002, ...)
   status     String    @default("PENDING")  // PENDING, APPROVED, REJECTED
   approvedAt DateTime?
   createdAt  DateTime  @default(now())

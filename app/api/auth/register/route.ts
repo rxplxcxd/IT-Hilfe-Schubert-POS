@@ -24,6 +24,8 @@ export async function POST(request: Request) {
 
     const count = await prisma.appUser.count();
     const isFirst = count === 0;
+    const max = await prisma.appUser.aggregate({ _max: { employeeNo: true } });
+    const nextNo = isFirst ? 1 : (max._max.employeeNo || 0) + 1;
 
     const record = await prisma.appUser.create({
       data: {
@@ -32,6 +34,7 @@ export async function POST(request: Request) {
         role: isFirst ? 'ADMIN' : 'EMPLOYEE',
         status: isFirst ? 'APPROVED' : 'PENDING',
         approvedAt: isFirst ? new Date() : null,
+        employeeNo: nextNo,
       },
     });
 

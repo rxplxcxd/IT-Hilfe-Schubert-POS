@@ -40,6 +40,7 @@ export default function RegisterPage() {
       }
       // Freigabe-Datensatz anlegen. Erster Nutzer => Admin (APPROVED), sonst PENDING.
       let approved = false;
+      let created = false;
       try {
         const res = await fetch('/api/auth/register', {
           method: 'POST',
@@ -48,6 +49,7 @@ export default function RegisterPage() {
         });
         const j = await res.json();
         approved = j?.status === 'APPROVED';
+        created = j?.created === true;
       } catch {
         /* nicht blockierend */
       }
@@ -66,7 +68,13 @@ export default function RegisterPage() {
           await supabase.auth.signOut();
         } catch {}
       }
-      setInfo('Deine Registrierung wurde eingereicht und muss noch vom Administrator freigegeben werden. Sobald dein Zugang aktiv ist, erhältst du eine E-Mail und kannst dich anmelden.');
+      if (created) {
+        setInfo('Deine Registrierung wurde eingereicht und muss noch vom Administrator freigegeben werden. Sobald dein Zugang aktiv ist, erhältst du eine E-Mail und kannst dich anmelden.');
+      } else {
+        // Der Warte-Datensatz konnte nicht sofort angelegt werden. Der erste
+        // Login-Versuch legt ihn zuverlässig an (selbstheilende Login-Route).
+        setInfo('Dein Konto wurde erstellt. Bitte melde dich jetzt einmal mit deinen Zugangsdaten an – dadurch wird deine Freigabe-Anfrage an den Administrator übermittelt. Du erhältst eine E-Mail, sobald dein Zugang aktiv ist.');
+      }
       setLoading(false);
     } catch {
       setError('Ein Fehler ist aufgetreten.');

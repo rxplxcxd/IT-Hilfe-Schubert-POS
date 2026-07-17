@@ -12,7 +12,7 @@ export interface AccessInfo {
 
 /** Kleiner Retry-Helfer: die DB hat sehr kurze Timeouts, ein Kaltstart kann
  *  den ersten Query scheitern lassen. Wir versuchen es daher kurz erneut. */
-async function withRetry<T>(fn: () => Promise<T>, tries = 3, delayMs = 250): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, tries = 3, delayMs = 250): Promise<T> {
   let lastErr: any;
   for (let i = 0; i < tries; i++) {
     try {

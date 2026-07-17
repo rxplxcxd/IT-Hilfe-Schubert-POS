@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Preview URL Unavailable</title>
+  <style>
+   body {
+     font-family: Arial, sans-serif;
+     background: #f8f9fa;
+     color: #333;
+     margin: 0;
+     padding: 0;
+   }
+   .container {
+     max-width: 600px;
+     margin: 80px auto;
+     background: #fff;
+     border-radius: 8px;
+     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+     padding: 40px 30px;
+     text-align: center;
+   }
+   h1 {
+     color: #d9534f;
+     margin-bottom: 20px;
+   }
+   p {
+     font-size: 1.2em;
+     margin-bottom: 0;
+   }
+  </style>
+</head>
+<body>
+  <div class="container">
+   <h1>Preview URL Currently Unavailable</h1>
+   <p>
+     This is likely because your Abacus AI Agent Computer is offline.<br>
+     Please go back to the conversation and hit re-start OR refresh this page if you are already in the Abacus AI Agent conversation
+   </p>
+  </div>
+</body>
+</html>

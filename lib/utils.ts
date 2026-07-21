@@ -32,6 +32,12 @@ export function formatDateTime(date: Date | string | null | undefined): string {
   }).format(new Date(date));
 }
 
+/** Mitarbeiter-Kuerzel als Badge-Label, z.B. 2 -> "M002". Ohne Nummer -> "". */
+export function employeeCode(employeeNo?: number | null): string {
+  if (employeeNo === null || employeeNo === undefined) return '';
+  return `M${String(employeeNo).padStart(3, '0')}`;
+}
+
 export function getZoneCost(zone: number): number {
   switch (zone) {
     case 1: return 0;

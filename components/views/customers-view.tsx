@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, Phone, Mail, MapPin, ChevronRight, ArrowLeft, Save, Trash2, UserPlus, StickyNote, Eye } from 'lucide-react';
+import { Search, Plus, Phone, Mail, MapPin, ChevronRight, ArrowLeft, Save, Trash2, UserPlus, StickyNote, Eye, Filter, ShieldCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { getZoneLabel } from '@/lib/utils';
+import { getZoneLabel, employeeCode } from '@/lib/utils';
 
 interface Customer {
   id: number;
@@ -22,9 +22,17 @@ interface Customer {
   zone: number;
   notes: string;
   subscriptions?: any[];
+  ownerId?: number | null;
+  ownerName?: string;
+  ownerNo?: number | null;
+  ownerRole?: string;
+  ownedByMe?: boolean;
 }
 
-export function CustomersView({ editCustomerId, onEditCustomer, onViewCustomerDetail }: {
+interface TeamMember { id: number; name: string; email: string; role: string; employeeNo: number | null; }
+
+export function CustomersView({ isAdmin = false, editCustomerId, onEditCustomer, onViewCustomerDetail }: {
+  isAdmin?: boolean;
   editCustomerId: number | null;
   onEditCustomer: (id: number | null) => void;
   onViewCustomerDetail?: (id: number) => void;
@@ -37,6 +45,10 @@ export function CustomersView({ editCustomerId, onEditCustomer, onViewCustomerDe
     phone: '', email: '', zone: 1, notes: '',
   });
   const [loading, setLoading] = useState(true);
+  // Admin-Schnellfilter nach zustaendigem Mitarbeiter.
+  const [ownerFilter, setOwnerFilter] = useState<string>('ALL'); // ALL | MINE | <userId>
+  const [showFilter, setShowFilter] = useState(false);
+  const [team, setTeam] = useState<TeamMember[]>([]);
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -47,6 +59,19 @@ export function CustomersView({ editCustomerId, onEditCustomer, onViewCustomerDe
   }, []);
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
+
+  // Team-Liste nur fuer Admin laden (fuer den Filter).
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/users');
+        if (!res.ok) return;
+        const json = await res.json();
+        setTeam(Array.isArray(json) ? json.filter((u: any) => u?.status === 'APPROVED') : []);
+      } catch { /* still */ }
+    })();
+  }, [isAdmin]);
 
   useEffect(() => {
     if (editCustomerId) {
@@ -60,13 +85,27 @@ export function CustomersView({ editCustomerId, onEditCustomer, onViewCustomerDe
 
   const filtered = (customers ?? []).filter((c: Customer) => {
     const q = search?.toLowerCase() ?? '';
-    return (
+    const matchesSearch = (
       (c?.firstName?.toLowerCase() ?? '').includes(q) ||
       (c?.lastName?.toLowerCase() ?? '').includes(q) ||
       (c?.phone ?? '').includes(q) ||
       (c?.city?.toLowerCase() ?? '').includes(q)
     );
+    if (!matchesSearch) return false;
+    // Admin-Zuordnungsfilter
+    if (isAdmin && ownerFilter !== 'ALL') {
+      if (ownerFilter === 'MINE') return !!c?.ownedByMe;
+      return String(c?.ownerId ?? '') === ownerFilter;
+    }
+    return true;
   });
+
+  const ownerFilterLabel = (() => {
+    if (ownerFilter === 'ALL') return 'Alle';
+    if (ownerFilter === 'MINE') return 'Nur meine';
+    const m = team.find((t) => String(t.id) === ownerFilter);
+    return m ? (m.role === 'ADMIN' ? 'Admin' : employeeCode(m.employeeNo)) : 'Filter';
+  })();
 
   const handleSave = async () => {
     if (!(formData?.firstName ?? '').trim() || !(formData?.lastName ?? '').trim() || !(formData?.phone ?? '').trim()) {
@@ -188,10 +227,45 @@ export function CustomersView({ editCustomerId, onEditCustomer, onViewCustomerDe
             className="pl-9"
           />
         </div>
+        {isAdmin && (
+          <div className="relative shrink-0">
+            <Button variant={ownerFilter === 'ALL' ? 'outline' : 'default'} size="icon" onClick={() => setShowFilter((v) => !v)} title="Nach Mitarbeiter filtern">
+              <Filter className="w-4 h-4" />
+            </Button>
+            {showFilter && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowFilter(false)} />
+                <div className="absolute right-0 top-11 z-50 w-56 bg-card text-foreground rounded-xl shadow-xl border border-border p-1 max-h-[60vh] overflow-y-auto">
+                  <FilterOption active={ownerFilter === 'ALL'} onClick={() => { setOwnerFilter('ALL'); setShowFilter(false); }}>Alle anzeigen</FilterOption>
+                  <FilterOption active={ownerFilter === 'MINE'} onClick={() => { setOwnerFilter('MINE'); setShowFilter(false); }}>Nur meine (Admin)</FilterOption>
+                  {team.length > 0 && <div className="my-1 border-t border-border" />}
+                  {team.map((m) => (
+                    <FilterOption key={m.id} active={ownerFilter === String(m.id)} onClick={() => { setOwnerFilter(String(m.id)); setShowFilter(false); }}>
+                      <span className="flex items-center gap-2">
+                        <span className="font-mono text-[11px] text-muted-foreground">{m.role === 'ADMIN' ? 'Admin' : employeeCode(m.employeeNo)}</span>
+                        <span className="truncate">{m.name || m.email}</span>
+                      </span>
+                    </FilterOption>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <Button size="icon" onClick={() => { setFormData({ firstName: '', lastName: '', street: '', houseNr: '', zip: '', city: '', phone: '', email: '', zone: 1, notes: '' }); setShowForm(true); }}>
           <Plus className="w-5 h-5" />
         </Button>
       </div>
+
+      {isAdmin && ownerFilter !== 'ALL' && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
+            <Filter className="w-3 h-3" /> {ownerFilterLabel}
+            <button onClick={() => setOwnerFilter('ALL')} className="ml-0.5 hover:opacity-70">×</button>
+          </span>
+          <span className="text-muted-foreground">{filtered.length} Kunde(n)</span>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-8"><div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" /></div>
@@ -235,6 +309,12 @@ export function CustomersView({ editCustomerId, onEditCustomer, onViewCustomerDe
                       )}
                     </div>
                   </div>
+                  {isAdmin && (c?.ownerRole || c?.ownerNo != null) && (
+                    <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" title={c?.ownerName || ''}>
+                      {c?.ownerRole === 'ADMIN' ? <ShieldCheck className="w-3 h-3" /> : null}
+                      {c?.ownerRole === 'ADMIN' ? 'Admin' : employeeCode(c?.ownerNo)}
+                    </span>
+                  )}
                   <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                 </CardContent>
               </Card>
@@ -243,5 +323,16 @@ export function CustomersView({ editCustomerId, onEditCustomer, onViewCustomerDe
         </div>
       )}
     </div>
+  );
+}
+
+function FilterOption({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center px-3 py-2 rounded-lg text-sm text-left transition-colors ${active ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-muted'}`}
+    >
+      {children}
+    </button>
   );
 }

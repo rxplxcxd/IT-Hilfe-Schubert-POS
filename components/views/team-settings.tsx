@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, X, Clock, Shield, User as UserIcon, Trash2, RefreshCw, Mail } from 'lucide-react';
+import { Check, X, Clock, Shield, User as UserIcon, Trash2, RefreshCw, Mail, ArrowLeft, ChevronRight, Phone, MapPin, Users, FileText, ShoppingCart, Euro, Loader2 } from 'lucide-react';
 import { notifySuccess, notifyError } from '@/lib/toast';
 import { useNotifications } from '@/components/notification-provider';
+import { employeeCode, formatCurrency } from '@/lib/utils';
 
 interface AppUserRow {
   id: number;
@@ -13,8 +14,19 @@ interface AppUserRow {
   name: string;
   role: string;
   status: string;
+  employeeNo?: number | null;
+  contactStreet?: string;
+  contactZip?: string;
+  contactCity?: string;
+  contactPhone?: string;
   approvedAt?: string | null;
   createdAt: string;
+}
+
+interface MemberDetail {
+  user: AppUserRow;
+  customers: { id: number; firstName: string; lastName: string; city: string; phone: string }[];
+  stats: { customerCount: number; invoiceCount: number; orderCount: number; revenue: number };
 }
 
 function statusBadge(status: string) {
@@ -30,6 +42,26 @@ export function TeamSettings() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const { refresh } = useNotifications();
+  const [detailId, setDetailId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<MemberDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const openDetail = useCallback(async (id: number) => {
+    setDetailId(id);
+    setDetail(null);
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`/api/users/${id}`, { cache: 'no-store' });
+      if (!res.ok) { notifyError('Details konnten nicht geladen werden'); setDetailId(null); return; }
+      const data = await res.json();
+      setDetail(data);
+    } catch {
+      notifyError('Fehler beim Laden');
+      setDetailId(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +131,82 @@ export function TeamSettings() {
     );
   }
 
+  // --- Mitarbeiter-Detailansicht ---
+  if (detailId != null) {
+    const u = detail?.user;
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => { setDetailId(null); setDetail(null); }} className="gap-1.5">
+          <ArrowLeft className="h-4 w-4" /> Zurück zum Team
+        </Button>
+
+        {detailLoading || !detail || !u ? (
+          <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <>
+            <Card className="shadow-sm"><CardContent className="p-5 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                  {(u.name || u.email).slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold truncate">{u.name || u.email}</p>
+                    {u.role === 'ADMIN' ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400 px-2 py-0.5 text-[11px] font-semibold"><Shield className="w-3 h-3" />Admin</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300 px-2 py-0.5 text-[11px] font-semibold">{employeeCode(u.employeeNo) || 'Mitarbeiter'}</span>
+                    )}
+                    {statusBadge(u.status)}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1"><Mail className="w-3 h-3" />{u.email}</p>
+                </div>
+              </div>
+              {(u.contactPhone || u.contactStreet || u.contactCity) && (
+                <div className="text-xs text-muted-foreground space-y-1 pt-1 border-t border-border">
+                  {u.contactPhone && <p className="flex items-center gap-1.5 pt-2"><Phone className="w-3 h-3" />{u.contactPhone}</p>}
+                  {(u.contactStreet || u.contactCity) && <p className="flex items-center gap-1.5"><MapPin className="w-3 h-3" />{[u.contactStreet, [u.contactZip, u.contactCity].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</p>}
+                </div>
+              )}
+            </CardContent></Card>
+
+            {/* Kennzahlen (vorbereitet fuer spaetere Auswertungen) */}
+            <div className="grid grid-cols-2 gap-2">
+              <StatCard icon={<Users className="w-4 h-4" />} label="Kunden" value={String(detail.stats.customerCount)} />
+              <StatCard icon={<FileText className="w-4 h-4" />} label="Rechnungen" value={String(detail.stats.invoiceCount)} />
+              <StatCard icon={<ShoppingCart className="w-4 h-4" />} label="Aufträge" value={String(detail.stats.orderCount)} />
+              <StatCard icon={<Euro className="w-4 h-4" />} label="Umsatz (bezahlt)" value={formatCurrency(detail.stats.revenue)} />
+            </div>
+
+            <Card className="shadow-sm"><CardContent className="p-4">
+              <h3 className="font-semibold text-sm mb-3">Zugeordnete Kunden ({detail.customers.length})</h3>
+              {detail.customers.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">Noch keine Kunden zugeordnet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {detail.customers.map((c) => (
+                    <div key={c.id} className="flex items-center gap-3 rounded-xl border border-border p-2.5">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                        {(c.firstName?.[0] ?? '')}{(c.lastName?.[0] ?? '')}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{c.firstName} {c.lastName}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-0.5"><Phone className="w-3 h-3" />{c.phone || '-'}</span>
+                          {(c.city || '').trim() && <span className="flex items-center gap-0.5"><MapPin className="w-3 h-3" />{c.city}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent></Card>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Offene Anfragen */}
@@ -153,17 +261,20 @@ export function TeamSettings() {
             <div className="space-y-2">
               {others.map((u) => (
                 <div key={u.id} className="flex items-center justify-between gap-2 rounded-xl border border-border p-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate">{u.name || u.email}</p>
-                      {u.role === 'ADMIN' ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400 px-2 py-0.5 text-[11px] font-semibold"><Shield className="w-3 h-3" />Admin</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300 px-2 py-0.5 text-[11px] font-semibold"><UserIcon className="w-3 h-3" />Mitarbeiter</span>
-                      )}
+                  <button onClick={() => openDetail(u.id)} className="min-w-0 flex items-center gap-2 text-left flex-1 group">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{u.name || u.email}</p>
+                        {u.role === 'ADMIN' ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400 px-2 py-0.5 text-[11px] font-semibold"><Shield className="w-3 h-3" />Admin</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300 px-2 py-0.5 text-[11px] font-semibold"><UserIcon className="w-3 h-3" />{employeeCode(u.employeeNo) || 'Mitarbeiter'}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{u.email}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{u.email}</p>
-                  </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                  </button>
                   <div className="flex items-center gap-2 shrink-0">
                     {statusBadge(u.status)}
                     {u.status === 'REJECTED' && (
@@ -183,8 +294,17 @@ export function TeamSettings() {
       </Card>
 
       <p className="text-xs text-muted-foreground px-1 leading-relaxed">
-        Neue Mitarbeiter können sich über die Registrierung anmelden. Erst nach deiner Freigabe hier erhalten sie Zugriff auf das Kassensystem.
+        Neue Mitarbeiter können sich über die Registrierung anmelden. Erst nach deiner Freigabe hier erhalten sie Zugriff auf das Kassensystem. Tippe auf ein Mitglied, um dessen Kunden und Kennzahlen zu sehen.
       </p>
+    </div>
+  );
+}
+
+function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border p-3 bg-card">
+      <div className="flex items-center gap-1.5 text-muted-foreground text-xs mb-1">{icon}<span>{label}</span></div>
+      <p className="text-lg font-bold">{value}</p>
     </div>
   );
 }

@@ -128,3 +128,50 @@ export function accessApprovedHtml(d: { name?: string }) {
     <p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">Viel Erfolg und gutes Gelingen!</p>`;
   return layout('Zugang freigeschaltet', inner, 'Automatische Benachrichtigung aus dem POS-System von IT-Hilfe Schubert.');
 }
+
+export interface NewTicketEmailData {
+  ticketNumber: string;
+  subject: string;
+  employeeName: string;
+  priority: string;
+  description: string;
+}
+
+/** Info an den Admin: neues Support-Ticket eines Mitarbeiters */
+export function newTicketAdminHtml(d: NewTicketEmailData) {
+  const prioColor = d.priority === 'HOCH' ? '#dc2626' : d.priority === 'NIEDRIG' ? '#64748b' : '#2563eb';
+  const inner = `
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.6;"><strong>${d.employeeName || 'Ein Mitarbeiter'}</strong> hat ein neues Support-Ticket erstellt.</p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:20px 22px;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${infoRow('Ticket-Nr.', d.ticketNumber)}
+        ${infoRow('Betreff', d.subject)}
+        ${infoRow('Mitarbeiter', d.employeeName)}
+        ${infoRow('Priorität', `<span style="color:${prioColor};font-weight:700;">${d.priority}</span>`)}
+      </table>
+    </div>
+    ${d.description ? `<div style="margin:18px 0 0;padding:16px 18px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;font-size:14px;line-height:1.6;color:#334155;white-space:pre-wrap;">${d.description}</div>` : ''}
+    <p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#334155;">Bitte im Ticketsystem bearbeiten.</p>`;
+  return layout('Neues Ticket', inner, 'Automatische Benachrichtigung aus dem POS-System von IT-Hilfe Schubert.');
+}
+
+export interface TicketReplyEmailData {
+  ticketNumber: string;
+  subject: string;
+  authorName: string;
+  body: string;
+}
+
+/** Info an die Gegenseite: neue Antwort in einem Ticket */
+export function ticketReplyHtml(d: TicketReplyEmailData) {
+  const inner = `
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">Neue Antwort im Ticket <strong>${d.ticketNumber}</strong>.</p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:20px 22px;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${infoRow('Betreff', d.subject)}
+        ${infoRow('Von', d.authorName)}
+      </table>
+    </div>
+    <div style="margin:18px 0 0;padding:16px 18px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;font-size:14px;line-height:1.6;color:#334155;white-space:pre-wrap;">${d.body}</div>`;
+  return layout('Neue Antwort', inner, 'Automatische Benachrichtigung aus dem POS-System von IT-Hilfe Schubert.');
+}

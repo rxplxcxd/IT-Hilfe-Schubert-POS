@@ -12,6 +12,27 @@ export async function GET() {
       orderBy: { lastName: 'asc' },
       include: { subscriptions: { where: { active: true } } },
     });
+
+    // Fuer den Admin: jeden Kunden mit Besitzer-Infos anreichern (Badge/Filter).
+    if (scope.isAdmin) {
+      const owners = await prisma.appUser.findMany({
+        select: { id: true, name: true, email: true, role: true, employeeNo: true },
+      });
+      const map = new Map(owners.map((o) => [o.id, o]));
+      const meId = scope.access?.id ?? null;
+      const decorated = (customers ?? []).map((c: any) => {
+        const o = c.ownerId != null ? map.get(c.ownerId) : undefined;
+        return {
+          ...c,
+          ownerName: o ? (o.name || o.email) : '',
+          ownerNo: o ? o.employeeNo : null,
+          ownerRole: o ? o.role : '',
+          ownedByMe: meId != null && c.ownerId === meId,
+        };
+      });
+      return NextResponse.json(decorated);
+    }
+
     return NextResponse.json(customers ?? []);
   } catch (error: any) {
     console.error('Customers GET error:', error);

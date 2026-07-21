@@ -6,6 +6,51 @@ import { isCurrentUserAdmin } from '@/lib/access';
 import { sendEmail } from '@/lib/email';
 import { accessApprovedHtml } from '@/lib/email-templates';
 
+// GET: Detail eines Mitarbeiters inkl. seiner Kunden und Kennzahlen (nur Admin)
+export async function GET(_request: Request, { params }: { params: { id: string } }) {
+  try {
+    if (!(await isCurrentUserAdmin())) {
+      return NextResponse.json({ error: 'Nicht berechtigt' }, { status: 403 });
+    }
+    const id = parseInt(params.id, 10);
+    if (isNaN(id)) return NextResponse.json({ error: 'Ungültige ID' }, { status: 400 });
+
+    const user = await prisma.appUser.findUnique({ where: { id } });
+    if (!user) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
+
+    const customers = await prisma.customer.findMany({
+      where: { ownerId: id },
+      orderBy: { lastName: 'asc' },
+      select: { id: true, firstName: true, lastName: true, city: true, phone: true },
+    });
+
+    // Kennzahlen ueber die Kunden dieses Mitarbeiters.
+    const [invoiceAgg, orderCount, paidAgg] = await Promise.all([
+      prisma.invoice.aggregate({
+        where: { customer: { ownerId: id } },
+        _count: true,
+      }),
+      prisma.order.count({ where: { customer: { ownerId: id } } }),
+      prisma.invoice.aggregate({
+        where: { customer: { ownerId: id }, status: 'BEZAHLT' },
+        _sum: { total: true },
+      }),
+    ]);
+
+    const stats = {
+      customerCount: customers.length,
+      invoiceCount: invoiceAgg._count || 0,
+      orderCount: orderCount || 0,
+      revenue: paidAgg._sum.total || 0,
+    };
+
+    return NextResponse.json({ user, customers, stats });
+  } catch (error: any) {
+    console.error('users GET detail:', error?.message);
+    return NextResponse.json({ error: error?.message }, { status: 500 });
+  }
+}
+
 // PATCH: Freigeben / Ablehnen / Rolle aendern (nur Admin)
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {

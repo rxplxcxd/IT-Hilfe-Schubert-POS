@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, ShoppingCart, FileText, Settings, Mail, Package, Wallet, ClipboardList, CalendarDays, LogOut, Bell, X } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, FileText, Settings, Mail, Package, Wallet, ClipboardList, CalendarDays, LogOut, Bell, X, LifeBuoy } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { NotificationProvider, useNotifications } from './notification-provider';
 import { notifyInfo, notifySuccess } from '@/lib/toast';
@@ -17,12 +17,14 @@ import { FinancesView } from './views/finances-view';
 import { CustomerDetailView } from './views/customer-detail-view';
 import { BelegeHubView } from './views/belege-hub-view';
 import { AppointmentsView } from './views/appointments-view';
+import { TicketsView } from './views/tickets-view';
 
 const tabs = [
   { id: 'dashboard', label: 'Start', icon: LayoutDashboard },
   { id: 'customers', label: 'Kunden', icon: Users },
   { id: 'booking', label: 'Buchung', icon: ShoppingCart },
   { id: 'belege', label: 'Belege', icon: ClipboardList },
+  { id: 'tickets', label: 'Tickets', icon: LifeBuoy },
   { id: 'email', label: 'E-Mail', icon: Mail },
   { id: 'finances', label: 'Finanzen', icon: Wallet },
   { id: 'products', label: 'Produkte', icon: Package },
@@ -52,7 +54,7 @@ export function AppShell({ isAdmin = false }: { isAdmin?: boolean }) {
 
 function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
   const router = useRouter();
-  const { pendingUsers, openAppointments, dueReminders, total } = useNotifications();
+  const { pendingUsers, openAppointments, dueReminders, openTickets, total } = useNotifications();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [settingsSection, setSettingsSection] = useState<string | undefined>(undefined);
   const [showMore, setShowMore] = useState(false);
@@ -95,6 +97,7 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
         if (d.openAppointments) parts.push(`${d.openAppointments} offene Terminanfrage${d.openAppointments === 1 ? '' : 'n'}`);
         if (isAdmin && d.pendingUsers) parts.push(`${d.pendingUsers} Registrierungsanfrage${d.pendingUsers === 1 ? '' : 'n'}`);
         if (d.dueReminders) parts.push(`${d.dueReminders} fällige Erinnerung${d.dueReminders === 1 ? '' : 'en'}`);
+        if (d.openTickets) parts.push(`${d.openTickets} ${isAdmin ? 'neue' : 'aktualisierte'} Ticket${d.openTickets === 1 ? '' : 's'}`);
         if (parts.length) notifyInfo('Willkommen zurück!', parts.join('  ·  '));
         else notifySuccess('Willkommen zurück!', 'Alles erledigt – keine offenen Aufgaben.');
       } catch {
@@ -109,6 +112,7 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
 
   const badgeForTab = (id: TabId): number => {
     if (id === 'appointments') return openAppointments;
+    if (id === 'tickets') return openTickets;
     if (id === 'settings') return isAdmin ? pendingUsers : 0;
     return 0;
   };
@@ -187,6 +191,13 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
                       <CountBadge count={dueReminders} />
                     </button>
                   )}
+                  {openTickets > 0 && (
+                    <button onClick={() => navigateTo('tickets')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted transition-colors text-left">
+                      <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0"><LifeBuoy className="w-4 h-4" /></div>
+                      <div className="min-w-0 flex-1"><p className="text-sm font-medium">{isAdmin ? 'Neue Tickets' : 'Ticket-Updates'}</p><p className="text-xs text-muted-foreground">{openTickets} ungelesen</p></div>
+                      <CountBadge count={openTickets} />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -211,6 +222,7 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
             )}
             {activeTab === 'customers' && (
               <CustomersView
+                isAdmin={isAdmin}
                 editCustomerId={editCustomerId}
                 onEditCustomer={setEditCustomerId}
                 onViewCustomerDetail={(id: number) => setViewCustomerDetailId(id)}
@@ -222,6 +234,7 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
             {activeTab === 'belege' && (
               <BelegeHubView viewInvoiceId={viewInvoiceId} onViewInvoice={setViewInvoiceId} />
             )}
+            {activeTab === 'tickets' && <TicketsView isAdmin={isAdmin} />}
             {activeTab === 'email' && <EmailView />}
             {activeTab === 'finances' && <FinancesView />}
             {activeTab === 'products' && <ProductsView />}

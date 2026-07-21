@@ -319,6 +319,8 @@ model Settings {
   nextCaseNumber Int    @default(1)
   // Counter for cancellation invoices
   nextStornoNumber Int  @default(1)
+  // Counter for support tickets
+  nextTicketNumber Int  @default(1)
   updatedAt      DateTime @updatedAt @default(now())
 }
 
@@ -370,4 +372,52 @@ model AppUser {
   updatedAt  DateTime  @updatedAt @default(now())
 
   @@index([status])
+}
+
+model Ticket {
+  id            Int      @id @default(autoincrement())
+  ticketNumber  String   @unique
+  subject       String
+  description   String   @default("")
+  status        String   @default("OFFEN") // OFFEN, IN_BEARBEITUNG, ERLEDIGT
+  priority      String   @default("NORMAL") // NIEDRIG, NORMAL, HOCH
+  createdById   Int
+  createdByName String   @default("")
+  createdByNo   Int?
+  adminUnread   Boolean  @default(true)
+  employeeUnread Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt @default(now())
+  closedAt      DateTime?
+  attachments   TicketAttachment[]
+  messages      TicketMessage[]
+
+  @@index([createdById])
+  @@index([status])
+}
+
+model TicketAttachment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  url       String
+  filePath  String   @default("")
+  kind      String   @default("image") // image, video
+  caption   String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+model TicketMessage {
+  id         Int      @id @default(autoincrement())
+  ticketId   Int
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId   Int
+  authorName String   @default("")
+  authorRole String   @default("EMPLOYEE") // ADMIN, EMPLOYEE
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([ticketId])
 }

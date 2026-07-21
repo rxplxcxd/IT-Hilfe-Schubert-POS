@@ -6,6 +6,7 @@ export interface NotificationSummary {
   pendingUsers: number;
   openAppointments: number;
   dueReminders: number;
+  openTickets: number;
   total: number;
 }
 
@@ -17,6 +18,7 @@ const DEFAULT: NotificationContextValue = {
   pendingUsers: 0,
   openAppointments: 0,
   dueReminders: 0,
+  openTickets: 0,
   total: 0,
   refresh: () => {},
 };
@@ -32,6 +34,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     pendingUsers: 0,
     openAppointments: 0,
     dueReminders: 0,
+    openTickets: 0,
     total: 0,
   });
 
@@ -44,6 +47,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         pendingUsers: Number(data?.pendingUsers) || 0,
         openAppointments: Number(data?.openAppointments) || 0,
         dueReminders: Number(data?.dueReminders) || 0,
+        openTickets: Number(data?.openTickets) || 0,
         total: Number(data?.total) || 0,
       });
     } catch {

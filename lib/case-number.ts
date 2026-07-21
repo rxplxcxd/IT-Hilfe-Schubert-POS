@@ -38,6 +38,21 @@ export async function getNextStornoNumber(employeeNo?: number | null): Promise<s
 }
 
 /**
+ * Generates the next support ticket number.
+ * Format: T-YYYY-XXX
+ * Uses atomic increment in Settings table to prevent duplicates.
+ */
+export async function getNextTicketNumber(): Promise<string> {
+  const year = new Date().getFullYear();
+  const settings = await prisma.settings.update({
+    where: { id: 1 },
+    data: { nextTicketNumber: { increment: 1 } },
+  });
+  const num = settings.nextTicketNumber - 1;
+  return `T-${year}-${String(num).padStart(3, '0')}`;
+}
+
+/**
  * Generates document-specific sub-numbers based on the case number.
  * Quote: AN-..., Invoice: RE-..., Order: AU-...
  * Behaelt Jahr, laufende Nummer UND das Mitarbeiter-Kuerzel bei

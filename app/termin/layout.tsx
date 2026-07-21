@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function TerminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-white text-gray-900">
+    <div className="flex min-h-screen flex-col bg-white text-gray-900">
       <style>{`
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(20px); }

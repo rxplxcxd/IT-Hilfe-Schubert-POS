@@ -359,6 +359,12 @@ model AppUser {
   role       String    @default("EMPLOYEE") // ADMIN, EMPLOYEE
   employeeNo Int?      @unique // fortlaufende Mitarbeiternummer (001, 002, ...)
   status     String    @default("PENDING")  // PENDING, APPROVED, REJECTED
+  // Persoenliche Kontaktdaten des Mitarbeiters (erscheinen auf seinen Belegen).
+  // Leer = globale Firmendaten aus Settings werden verwendet.
+  contactStreet String @default("")
+  contactZip    String @default("")
+  contactCity   String @default("")
+  contactPhone  String @default("")
   approvedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt @default(now())

@@ -2,28 +2,54 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getAccessForCurrentUser } from '@/lib/access';
+
+async function loadGlobalSettings() {
+  let settings = await prisma.settings.findUnique({ where: { id: 1 } });
+  if (!settings) {
+    settings = await prisma.settings.create({
+      data: {
+        id: 1,
+        companyName: 'IT-Hilfe Schubert',
+        ownerName: 'Leon Schubert',
+        taxInfo: 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
+      },
+    });
+  }
+  return settings;
+}
 
 export async function GET() {
   try {
-    let settings = await prisma.settings.findUnique({ where: { id: 1 } });
-    if (!settings) {
-      settings = await prisma.settings.create({
-        data: {
-          id: 1,
-          companyName: 'IT-Hilfe Schubert',
-          ownerName: 'Leon Schubert',
-          taxInfo: 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
-        },
-      });
+    const access = await getAccessForCurrentUser();
+    const isAdmin = !!access && access.role === 'ADMIN' && access.status === 'APPROVED';
+    const settings = await loadGlobalSettings();
+
+    // Fuer Mitarbeiter: Firmenname/E-Mail global (nur Anzeige, ausgegraut),
+    // aber persoenliche Kontaktdaten aus dem AppUser-Datensatz.
+    let ownerName = settings?.ownerName ?? '';
+    let street = settings?.street ?? '';
+    let zip = settings?.zip ?? '';
+    let city = settings?.city ?? '';
+    let phone = settings?.phone ?? '';
+
+    if (access && !isAdmin) {
+      const me = await prisma.appUser.findUnique({ where: { id: access.id } });
+      ownerName = (me?.name && me.name.trim()) ? me.name : ownerName;
+      street = (me as any)?.contactStreet ?? '';
+      zip = (me as any)?.contactZip ?? '';
+      city = (me as any)?.contactCity ?? '';
+      phone = (me as any)?.contactPhone ?? '';
     }
-    // Transform for client
+
     return NextResponse.json({
+      isAdmin,
       companyName: settings?.companyName ?? '',
-      ownerName: settings?.ownerName ?? '',
-      street: settings?.street ?? '',
-      zip: settings?.zip ?? '',
-      city: settings?.city ?? '',
-      phone: settings?.phone ?? '',
+      ownerName,
+      street,
+      zip,
+      city,
+      phone,
       email: settings?.email ?? '',
       taxInfo: settings?.taxInfo ?? '',
       invoiceHeader: settings?.invoiceHeader ?? '',
@@ -47,8 +73,30 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
+    const access = await getAccessForCurrentUser();
+    if (!access || access.status !== 'APPROVED') {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
+    const isAdmin = access.role === 'ADMIN';
     const data = await request.json();
-    const settings = await prisma.settings.upsert({
+
+    // Mitarbeiter duerfen NUR ihre eigenen Kontaktdaten aendern.
+    if (!isAdmin) {
+      await prisma.appUser.update({
+        where: { id: access.id },
+        data: {
+          name: data?.ownerName ?? access.name,
+          contactStreet: data?.street ?? '',
+          contactZip: data?.zip ?? '',
+          contactCity: data?.city ?? '',
+          contactPhone: data?.phone ?? '',
+        } as any,
+      });
+      return NextResponse.json({ success: true });
+    }
+
+    // Admin aendert die globalen Firmen-Einstellungen.
+    await prisma.settings.upsert({
       where: { id: 1 },
       update: {
         companyName: data?.companyName ?? 'IT-Hilfe Schubert',

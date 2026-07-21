@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/email';
 import { renderOrderPdf } from '@/lib/pdf/render';
-import { canAccessBeleg } from '@/lib/access';
+import { canAccessBeleg, getBillerSettings } from '@/lib/access';
 
 function formatDateDE(date: Date | string | null | undefined): string {
   if (!date) return '-';
@@ -29,10 +29,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: 'Kunde hat keine E-Mail-Adresse' }, { status: 400 });
     }
 
-    const settings = (await prisma.settings.findUnique({ where: { id: 1 } })) ?? ({
-      companyName: 'IT-Hilfe Schubert', ownerName: 'Leon Schubert',
-      taxInfo: 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
-    } as any);
+    const settings = await getBillerSettings(order?.customer?.ownerId);
 
     const htmlBody = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">

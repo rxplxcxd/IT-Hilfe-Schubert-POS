@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { renderInvoicePdf } from '@/lib/pdf/render';
-import { canAccessBeleg } from '@/lib/access';
+import { canAccessBeleg, getBillerSettings } from '@/lib/access';
 
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
   try {
@@ -17,12 +17,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
     });
     if (!invoice) return NextResponse.json({ error: 'Rechnung nicht gefunden' }, { status: 404 });
 
-    let settings = await prisma.settings.findUnique({ where: { id: 1 } });
-    if (!settings) {
-      settings = await prisma.settings.create({
-        data: { id: 1, companyName: 'IT-Hilfe Schubert', ownerName: 'Leon Schubert', taxInfo: 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.' },
-      });
-    }
+    const settings = await getBillerSettings(invoice?.customer?.ownerId);
 
     const pdfBuffer = await renderInvoicePdf(invoice, settings);
 

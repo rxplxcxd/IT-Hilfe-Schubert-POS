@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/email';
-import { canAccessBeleg } from '@/lib/access';
+import { canAccessBeleg, getBillerSettings } from '@/lib/access';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!quote) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
     if (!quote.customer.email) return NextResponse.json({ error: 'Kunde hat keine E-Mail-Adresse' }, { status: 400 });
 
-    const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+    const settings = await getBillerSettings(quote?.customer?.ownerId);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
     const acceptUrl = `${appUrl}/api/quotes/${quoteId}/public-accept`;
 

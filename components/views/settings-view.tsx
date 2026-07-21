@@ -127,12 +127,14 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
   }
 
   const sections = [
-    { id: 'company', label: 'Firma', icon: Building2 },
-    { id: 'invoice', label: 'Rechnung', icon: FileText },
-    { id: 'order', label: 'Auftrag', icon: ClipboardList },
-    { id: 'bank', label: 'Bank', icon: CreditCard },
-    { id: 'gmail', label: 'Gmail', icon: Globe },
-    ...(isAdmin ? [{ id: 'team', label: 'Team', icon: Users }] : []),
+    { id: 'company', label: isAdmin ? 'Firma' : 'Meine Daten', icon: Building2 },
+    ...(isAdmin ? [
+      { id: 'invoice', label: 'Rechnung', icon: FileText },
+      { id: 'order', label: 'Auftrag', icon: ClipboardList },
+      { id: 'bank', label: 'Bank', icon: CreditCard },
+      { id: 'gmail', label: 'Gmail', icon: Globe },
+      { id: 'team', label: 'Team', icon: Users },
+    ] : []),
     { id: 'theme', label: 'Design', icon: Sun },
   ];
 
@@ -163,15 +165,26 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
       {activeSection === 'company' && (
         <Card className="shadow-sm">
           <CardContent className="p-4 space-y-3">
-            <div><Label>Firmenname</Label><Input value={settings?.companyName ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), companyName: e?.target?.value ?? ''})} /></div>
-            <div><Label>Inhaber</Label><Input value={settings?.ownerName ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), ownerName: e?.target?.value ?? ''})} /></div>
+            {!isAdmin && (
+              <p className="text-xs text-muted-foreground bg-blue-50 border border-blue-100 rounded-md p-2">
+                Firmenname und Firmen-E-Mail werden zentral vom Administrator verwaltet. Ihre eigenen Kontaktdaten (Name, Anschrift, Telefon) erscheinen auf Ihren eigenen Belegen.
+              </p>
+            )}
+            <div>
+              <Label>Firmenname</Label>
+              <Input value={settings?.companyName ?? ''} disabled={!isAdmin} className="disabled:opacity-60 disabled:cursor-not-allowed" onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), companyName: e?.target?.value ?? ''})} />
+            </div>
+            <div><Label>{isAdmin ? 'Inhaber' : 'Ihr Name'}</Label><Input value={settings?.ownerName ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), ownerName: e?.target?.value ?? ''})} /></div>
             <div><Label>Straße</Label><Input value={settings?.street ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), street: e?.target?.value ?? ''})} /></div>
             <div className="grid grid-cols-3 gap-2">
               <div><Label>PLZ</Label><Input value={settings?.zip ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), zip: e?.target?.value ?? ''})} /></div>
               <div className="col-span-2"><Label>Ort</Label><Input value={settings?.city ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), city: e?.target?.value ?? ''})} /></div>
             </div>
             <div><Label>Telefon</Label><Input value={settings?.phone ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), phone: e?.target?.value ?? ''})} /></div>
-            <div><Label>E-Mail</Label><Input value={settings?.email ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), email: e?.target?.value ?? ''})} type="email" /></div>
+            <div>
+              <Label>{isAdmin ? 'E-Mail' : 'Firmen-E-Mail'}</Label>
+              <Input value={settings?.email ?? ''} disabled={!isAdmin} className="disabled:opacity-60 disabled:cursor-not-allowed" onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), email: e?.target?.value ?? ''})} type="email" />
+            </div>
           </CardContent>
         </Card>
       )}

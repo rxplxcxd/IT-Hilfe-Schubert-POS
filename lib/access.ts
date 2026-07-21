@@ -159,3 +159,46 @@ export async function canAccessExpense(id: number): Promise<boolean> {
   const rec = await prisma.expense.findUnique({ where: { id }, select: { ownerId: true } });
   return !!rec && rec.ownerId === scope.access.id;
 }
+
+/* --------------------------------------------------------------------------
+ * Beleg-Absenderdaten (Biller)
+ *
+ * Firmen-Identitaet (Firmenname, E-Mail, Bank, Steuer, Logo, HQ) ist global
+ * und liegt in Settings (id=1). Jeder Mitarbeiter kann ABER eigene Kontakt-
+ * daten (Name, Strasse, PLZ, Ort, Telefon) hinterlegen, die dann auf SEINEN
+ * Belegen gedruckt werden.
+ *
+ * Diese Funktion laedt die globalen Settings und ueberschreibt – falls der
+ * Beleg einem Mitarbeiter gehoert (ownerId) und dieser eigene Kontaktdaten
+ * gepflegt hat – die persoenlichen Felder. Fuer Admin/ohne Besitzer bleiben
+ * die globalen Werte unveraendert.
+ * ------------------------------------------------------------------------ */
+export async function getBillerSettings(ownerId?: number | null): Promise<any> {
+  let settings = await prisma.settings.findUnique({ where: { id: 1 } });
+  if (!settings) {
+    settings = await prisma.settings.create({
+      data: {
+        id: 1,
+        companyName: 'IT-Hilfe Schubert',
+        ownerName: 'Leon Schubert',
+        taxInfo: 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
+      },
+    });
+  }
+
+  const merged: any = { ...settings };
+
+  if (ownerId) {
+    const owner = await prisma.appUser.findUnique({ where: { id: ownerId } });
+    // Nur fuer Mitarbeiter (nicht Admin) persoenliche Kontaktdaten uebernehmen.
+    if (owner && owner.role !== 'ADMIN') {
+      if (owner.name && owner.name.trim()) merged.ownerName = owner.name;
+      if ((owner as any).contactStreet && (owner as any).contactStreet.trim()) merged.street = (owner as any).contactStreet;
+      if ((owner as any).contactZip && (owner as any).contactZip.trim()) merged.zip = (owner as any).contactZip;
+      if ((owner as any).contactCity && (owner as any).contactCity.trim()) merged.city = (owner as any).contactCity;
+      if ((owner as any).contactPhone && (owner as any).contactPhone.trim()) merged.phone = (owner as any).contactPhone;
+    }
+  }
+
+  return merged;
+}

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { renderOrderPdf } from '@/lib/pdf/render';
-import { canAccessBeleg } from '@/lib/access';
+import { canAccessBeleg, getBillerSettings } from '@/lib/access';
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -17,7 +17,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     });
     if (!order) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
 
-    const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+    const settings = await getBillerSettings(order?.customer?.ownerId);
 
     const pdfBuffer = await renderOrderPdf(order, settings || {});
 

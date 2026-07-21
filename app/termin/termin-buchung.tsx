@@ -118,7 +118,7 @@ export function TerminBuchung({ companyName, ownerName, phone, email, logoUrl }:
   // LANDING PAGE
   if (step === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
+      <div className="flex-1 bg-gradient-to-br from-blue-50 via-white to-blue-50">
         {/* Hero */}
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-800" />
@@ -179,7 +179,7 @@ export function TerminBuchung({ companyName, ownerName, phone, email, logoUrl }:
   // BESTÄTIGUNG
   if (step === 3) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex items-center justify-center px-6">
+      <div className="flex-1 bg-gradient-to-br from-green-50 via-white to-blue-50 flex items-center justify-center px-6">
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center anim-scale-in">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-8 h-8 text-green-600" />
@@ -203,7 +203,7 @@ export function TerminBuchung({ companyName, ownerName, phone, email, logoUrl }:
 
   // DATUM + SLOT AUSWAHL + FORMULAR
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
+    <div className="flex-1 bg-gradient-to-br from-blue-50 via-white to-blue-50">
       {/* Header */}
       <div className="bg-blue-600 text-white px-4 py-4 flex items-center gap-3">
         <button onClick={() => setStep(step === 2 ? 1 : 0)} className="p-1 hover:bg-white/10 rounded-lg">

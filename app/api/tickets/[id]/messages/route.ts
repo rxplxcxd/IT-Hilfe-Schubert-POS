@@ -26,7 +26,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     const data = await request.json();
     const body = (data?.body ?? '').trim();
-    if (!body) return NextResponse.json({ error: 'Nachricht fehlt' }, { status: 400 });
+    const rawAttachments = Array.isArray(data?.attachments) ? data.attachments : [];
+    const attachments = rawAttachments
+      .filter((a: any) => a && a.url)
+      .map((a: any) => ({
+        url: String(a.url),
+        filePath: String(a.filePath ?? ''),
+        kind: a.kind === 'video' ? 'video' : 'image',
+        caption: String(a.caption ?? ''),
+      }));
+    if (!body && attachments.length === 0) {
+      return NextResponse.json({ error: 'Nachricht fehlt' }, { status: 400 });
+    }
 
     const message = await prisma.ticketMessage.create({
       data: {
@@ -35,6 +46,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         authorName: access.name || access.email,
         authorRole: isAdmin ? 'ADMIN' : 'EMPLOYEE',
         body,
+        attachments: JSON.stringify(attachments),
       },
     });
 
@@ -62,7 +74,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
             ticketNumber: ticket.ticketNumber,
             subject: ticket.subject,
             authorName: access.name || access.email,
-            body,
+            body: body || (attachments.length ? `[${attachments.length} Anhang/Anhaenge]` : ''),
           }),
           replyTo: access.email || undefined,
         });

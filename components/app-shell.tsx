@@ -46,10 +46,10 @@ function CountBadge({ count, ring = 'ring-card', className = '' }: { count: numb
   );
 }
 
-export function AppShell({ isAdmin = false }: { isAdmin?: boolean }) {
+export function AppShell({ isAdmin = false, employeeNo = null }: { isAdmin?: boolean; employeeNo?: number | null }) {
   return (
     <NotificationProvider>
-      <AppShellInner isAdmin={isAdmin} />
+      <AppShellInner isAdmin={isAdmin} employeeNo={employeeNo} />
     </NotificationProvider>
   );
 }
@@ -64,7 +64,7 @@ interface ViewState {
   composeEmailTo?: string | null;
 }
 
-function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
+function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: number | null }) {
   const router = useRouter();
   const { pendingUsers, openAppointments, dueReminders, openTickets, total, refresh } = useNotifications();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
@@ -362,7 +362,7 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
             {activeTab === 'email' && <EmailView />}
             {activeTab === 'finances' && <FinancesView />}
             {activeTab === 'products' && <ProductsView />}
-            {activeTab === 'appointments' && <AppointmentsView />}
+            {activeTab === 'appointments' && <AppointmentsView employeeNo={employeeNo} />}
             {activeTab === 'settings' && <SettingsView isAdmin={isAdmin} initialSection={settingsSection} />}
           </motion.div>
         </AnimatePresence>

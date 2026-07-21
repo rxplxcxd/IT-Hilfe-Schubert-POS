@@ -40,9 +40,14 @@ const emptyProduct = {
   unit: 'Pauschal',
 };
 
+// Modul-Cache: Produkte bleiben zwischen Tab-Wechseln erhalten -> sofortige Anzeige.
+// Beim erneuten Öffnen wird trotzdem im Hintergrund neu geladen (stale-while-revalidate),
+// damit neu angelegte Produkte immer erscheinen.
+let productsCache: Product[] | null = null;
+
 export function ProductsView() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>(productsCache ?? []);
+  const [loading, setLoading] = useState(!productsCache);
   const [editing, setEditing] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<any>({ ...emptyProduct });
@@ -51,8 +56,11 @@ export function ProductsView() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const res = await fetch('/api/products');
-      setProducts(await res.json() ?? []);
+      const res = await fetch('/api/products', { cache: 'no-store' });
+      const data = (await res.json()) ?? [];
+      const list: Product[] = Array.isArray(data) ? data : [];
+      productsCache = list;
+      setProducts(list);
     } catch {
       toast.error('Produkte konnten nicht geladen werden');
     } finally {

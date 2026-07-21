@@ -43,6 +43,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Betreff fehlt' }, { status: 400 });
     }
     const priority = ['NIEDRIG', 'NORMAL', 'HOCH'].includes(data?.priority) ? data.priority : 'NORMAL';
+    const ALLOWED_CATEGORIES = ['HARDWARE', 'SOFTWARE', 'NETZWERK', 'ABRECHNUNG', 'KUNDE', 'TERMIN', 'ZUGANG', 'APP', 'MATERIAL', 'SONSTIGES'];
+    const category = ALLOWED_CATEGORIES.includes(data?.category) ? data.category : 'SONSTIGES';
     const description = (data?.description ?? '').trim();
     const attachments = Array.isArray(data?.attachments) ? data.attachments : [];
 
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
         subject,
         description,
         priority,
+        category,
         status: 'OFFEN',
         createdById: access.id,
         createdByName: access.name || access.email,

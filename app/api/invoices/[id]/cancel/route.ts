@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getNextStornoNumber } from '@/lib/case-number';
+import { getNextStornoNumber, parseEmployeeNo } from '@/lib/case-number';
 import { canAccessBeleg } from '@/lib/access';
 
 /**
@@ -36,8 +36,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Eine Stornorechnung kann nicht erneut storniert werden' }, { status: 400 });
     }
 
-    // Generate Stornorechnung number
-    const stornoNumber = await getNextStornoNumber();
+    // Generate Stornorechnung number (pro Mitarbeiter, abgeleitet aus der Originalrechnung)
+    const stornoEmployeeNo = parseEmployeeNo(invoice.caseNumber) ?? parseEmployeeNo(invoice.invoiceNumber);
+    const stornoNumber = await getNextStornoNumber(stornoEmployeeNo);
 
     // Create Stornorechnung (negative amounts)
     const stornoInvoice = await prisma.invoice.create({

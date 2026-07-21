@@ -1,5 +1,6 @@
 generator client {
     provider = "prisma-client-js"
+    output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -324,6 +325,16 @@ model Settings {
   updatedAt      DateTime @updatedAt @default(now())
 }
 
+// Pro-Mitarbeiter fortlaufende Belegnummern (Vorgang + Storno).
+// Jeder Mitarbeiter beginnt eigenstaendig bei 0001, damit es keine
+// Dopplungen gibt und das Finanzamt Belege je Mitarbeiter nachvollziehen kann.
+model EmployeeCounter {
+  employeeNo       Int      @id
+  nextCaseNumber   Int      @default(1)
+  nextStornoNumber Int      @default(1)
+  updatedAt        DateTime @updatedAt @default(now())
+}
+
 model TimeSlot {
   id          Int      @id @default(autoincrement())
   dayOfWeek   Int      // 0=So, 1=Mo, 2=Di, 3=Mi, 4=Do, 5=Fr, 6=Sa
@@ -381,6 +392,7 @@ model Ticket {
   description   String   @default("")
   status        String   @default("OFFEN") // OFFEN, IN_BEARBEITUNG, ERLEDIGT
   priority      String   @default("NORMAL") // NIEDRIG, NORMAL, HOCH
+  category      String   @default("SONSTIGES") // HARDWARE, SOFTWARE, NETZWERK, ABRECHNUNG, KUNDE, TERMIN, ZUGANG, APP, MATERIAL, SONSTIGES
   createdById   Int
   createdByName String   @default("")
   createdByNo   Int?
@@ -417,6 +429,7 @@ model TicketMessage {
   authorName String   @default("")
   authorRole String   @default("EMPLOYEE") // ADMIN, EMPLOYEE
   body       String
+  attachments String  @default("[]") // JSON-Array: [{url, filePath, kind, caption}]
   createdAt  DateTime @default(now())
 
   @@index([ticketId])

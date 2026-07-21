@@ -27,6 +27,7 @@ interface Message {
   authorName: string;
   authorRole: string;
   body: string;
+  attachments?: string; // JSON-String
   createdAt: string;
 }
 interface Ticket {
@@ -36,6 +37,7 @@ interface Ticket {
   description: string;
   status: string;
   priority: string;
+  category: string;
   createdById: number;
   createdByName: string;
   createdByNo: number | null;
@@ -58,6 +60,33 @@ const PRIO_META: Record<string, { label: string; cls: string }> = {
   NORMAL: { label: 'Normal', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
   HOCH: { label: 'Hoch', cls: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
 };
+const PRIO_RANK: Record<string, number> = { HOCH: 0, NORMAL: 1, NIEDRIG: 2 };
+
+// 10 Kategorien inkl. "Sonstiges".
+const CATEGORY_META: Record<string, { label: string; cls: string }> = {
+  HARDWARE: { label: 'Hardware', cls: 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300' },
+  SOFTWARE: { label: 'Software', cls: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300' },
+  NETZWERK: { label: 'Netzwerk', cls: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300' },
+  ABRECHNUNG: { label: 'Abrechnung', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
+  KUNDE: { label: 'Kunde', cls: 'bg-pink-100 text-pink-700 dark:bg-pink-500/15 dark:text-pink-300' },
+  TERMIN: { label: 'Termin', cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300' },
+  ZUGANG: { label: 'Zugang / Passwort', cls: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
+  APP: { label: 'App / System', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
+  MATERIAL: { label: 'Material / Bestellung', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
+  SONSTIGES: { label: 'Sonstiges', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300' },
+};
+const CATEGORY_ORDER = ['HARDWARE', 'SOFTWARE', 'NETZWERK', 'ABRECHNUNG', 'KUNDE', 'TERMIN', 'ZUGANG', 'APP', 'MATERIAL', 'SONSTIGES'];
+
+const selectCls = 'h-9 rounded-lg border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+// Anhaenge sicher aus dem JSON-Feld einer Nachricht lesen.
+function parseMsgAttachments(raw?: string): Attachment[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
 
 export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
   const { refresh } = useNotifications();
@@ -68,6 +97,10 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [prioFilter, setPrioFilter] = useState('ALL');
+  const [employeeFilter, setEmployeeFilter] = useState('ALL');
+  const [sortBy, setSortBy] = useState('PRIO'); // PRIO | NEUESTE | AELTESTE | ALTER
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -94,16 +127,41 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
     finally { setDetailLoading(false); }
   }, [refresh]);
 
-  // Filter tickets
-  const filteredTickets = tickets.filter((t) => {
-    if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const haystack = `${t.ticketNumber} ${t.subject} ${t.createdByName}`.toLowerCase();
-      if (!haystack.includes(q)) return false;
-    }
-    return true;
-  });
+  // Mitarbeiter-Liste fuer den Filter (nur Admin) aus vorhandenen Tickets ableiten.
+  const employeeOptions = (() => {
+    const map = new Map<string, string>();
+    tickets.forEach((t) => {
+      const key = String(t.createdById);
+      if (!map.has(key)) {
+        const code = t.createdByNo ? ` (${employeeCode(t.createdByNo)})` : '';
+        map.set(key, `${t.createdByName}${code}`);
+      }
+    });
+    return Array.from(map.entries());
+  })();
+
+  // Filter + Sortierung
+  const filteredTickets = tickets
+    .filter((t) => {
+      if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
+      if (categoryFilter !== 'ALL' && (t.category || 'SONSTIGES') !== categoryFilter) return false;
+      if (prioFilter !== 'ALL' && t.priority !== prioFilter) return false;
+      if (isAdmin && employeeFilter !== 'ALL' && String(t.createdById) !== employeeFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const haystack = `${t.ticketNumber} ${t.subject} ${t.createdByName}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'NEUESTE') return +new Date(b.createdAt) - +new Date(a.createdAt);
+      if (sortBy === 'AELTESTE' || sortBy === 'ALTER') return +new Date(a.createdAt) - +new Date(b.createdAt);
+      // PRIO (Standard): hoechste Dringlichkeit zuerst, dann neueste zuerst.
+      const pr = (PRIO_RANK[a.priority] ?? 1) - (PRIO_RANK[b.priority] ?? 1);
+      if (pr !== 0) return pr;
+      return +new Date(b.updatedAt) - +new Date(a.updatedAt);
+    });
 
   // ---- LIST ----
   if (mode === 'list') {
@@ -123,7 +181,7 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
           </Button>
         </div>
 
-        {/* Search + Status Filter */}
+        {/* Suche + Status */}
         <div className="flex gap-2 flex-wrap">
           <div className="flex-1 relative min-w-[180px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -141,18 +199,45 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
 
+        {/* Filter + Sortierung */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Filter className="h-3.5 w-3.5" /> Filter:</span>
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className={selectCls} aria-label="Kategorie">
+            <option value="ALL">Alle Kategorien</option>
+            {CATEGORY_ORDER.map((c) => <option key={c} value={c}>{CATEGORY_META[c].label}</option>)}
+          </select>
+          <select value={prioFilter} onChange={(e) => setPrioFilter(e.target.value)} className={selectCls} aria-label="Dringlichkeit">
+            <option value="ALL">Alle Dringlichkeiten</option>
+            <option value="HOCH">Hoch</option>
+            <option value="NORMAL">Normal</option>
+            <option value="NIEDRIG">Niedrig</option>
+          </select>
+          {isAdmin && employeeOptions.length > 0 && (
+            <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className={selectCls} aria-label="Mitarbeiter">
+              <option value="ALL">Alle Mitarbeiter</option>
+              {employeeOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          )}
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={selectCls} aria-label="Sortierung">
+            <option value="PRIO">Sortieren: Dringlichkeit</option>
+            <option value="NEUESTE">Sortieren: Neueste zuerst</option>
+            <option value="ALTER">Sortieren: Alter (älteste zuerst)</option>
+          </select>
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : filteredTickets.length === 0 ? (
           <Card><CardContent className="py-14 text-center text-muted-foreground">
             <LifeBuoy className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            <p>{tickets.length === 0 ? 'Noch keine Tickets vorhanden.' : 'Keine Tickets f\u00fcr diesen Filter.'}</p>
+            <p>{tickets.length === 0 ? 'Noch keine Tickets vorhanden.' : 'Keine Tickets für diesen Filter.'}</p>
           </CardContent></Card>
         ) : (
           <div className="space-y-2.5">
             {filteredTickets.map((t) => {
               const st = STATUS_META[t.status] || STATUS_META.OFFEN;
               const pr = PRIO_META[t.priority] || PRIO_META.NORMAL;
+              const cat = CATEGORY_META[t.category] || CATEGORY_META.SONSTIGES;
               const unread = isAdmin ? t.adminUnread : t.employeeUnread;
               return (
                 <Card key={t.id} className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => openDetail(t.id)}>
@@ -164,6 +249,7 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
                           <span className="font-mono text-xs text-muted-foreground">{t.ticketNumber}</span>
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${pr.cls}`}>{pr.label}</span>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cat.cls}`}>{cat.label}</span>
                         </div>
                         <p className="font-semibold mt-1.5 truncate">{t.subject}</p>
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
@@ -209,11 +295,29 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
+// Gemeinsamer Datei-Upload (Foto/Video) -> gibt Attachment zurueck.
+async function uploadFile(file: File): Promise<Attachment> {
+  const isVideo = file.type.startsWith('video/');
+  const presignRes = await fetch('/api/upload/presigned', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName: `ticket-${Date.now()}-${file.name}`, contentType: file.type, isPublic: true }),
+  });
+  const { uploadUrl, cloud_storage_path } = await presignRes.json();
+  await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type, 'Content-Disposition': 'attachment' } });
+  const completeRes = await fetch('/api/upload/complete', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cloud_storage_path, isPublic: true }),
+  });
+  const { fileUrl } = await completeRes.json();
+  return { url: fileUrl, filePath: cloud_storage_path, kind: isVideo ? 'video' : 'image' };
+}
+
 // =============================== NEW TICKET ===============================
 function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: () => void }) {
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('NORMAL');
+  const [category, setCategory] = useState('SONSTIGES');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -225,20 +329,8 @@ function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: (
     setUploading(true);
     try {
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const isVideo = file.type.startsWith('video/');
-        const presignRes = await fetch('/api/upload/presigned', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: `ticket-${Date.now()}-${file.name}`, contentType: file.type, isPublic: true }),
-        });
-        const { uploadUrl, cloud_storage_path } = await presignRes.json();
-        await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type, 'Content-Disposition': 'attachment' } });
-        const completeRes = await fetch('/api/upload/complete', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cloud_storage_path, isPublic: true }),
-        });
-        const { fileUrl } = await completeRes.json();
-        setAttachments((prev) => [...prev, { url: fileUrl, filePath: cloud_storage_path, kind: isVideo ? 'video' : 'image' }]);
+        const a = await uploadFile(files[i]);
+        setAttachments((prev) => [...prev, a]);
       }
       toast.success('Anhang hochgeladen');
     } catch (err) { console.error(err); toast.error('Upload fehlgeschlagen'); }
@@ -253,7 +345,7 @@ function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: (
     try {
       const res = await fetch('/api/tickets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: subject.trim(), description: description.trim(), priority, attachments }),
+        body: JSON.stringify({ subject: subject.trim(), description: description.trim(), priority, category, attachments }),
       });
       if (!res.ok) { toast.error('Ticket konnte nicht erstellt werden'); return; }
       toast.success('Ticket erstellt');
@@ -271,20 +363,31 @@ function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: (
       <Card><CardContent className="p-5 space-y-4">
         <div className="space-y-1.5">
           <Label>Betreff *</Label>
-          <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Kurze Zusammenfassung" maxLength={140} />
+          <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Kurze Zusammenfassung" maxLength={140}
+            inputMode="text" autoCorrect="on" autoCapitalize="sentences" spellCheck />
         </div>
-        <div className="space-y-1.5">
-          <Label>Priorität</Label>
-          <select value={priority} onChange={(e) => setPriority(e.target.value)}
-            className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
-            <option value="NIEDRIG">Niedrig</option>
-            <option value="NORMAL">Normal</option>
-            <option value="HOCH">Hoch</option>
-          </select>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label>Kategorie</Label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)}
+              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+              {CATEGORY_ORDER.map((c) => <option key={c} value={c}>{CATEGORY_META[c].label}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Priorität</Label>
+            <select value={priority} onChange={(e) => setPriority(e.target.value)}
+              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+              <option value="NIEDRIG">Niedrig</option>
+              <option value="NORMAL">Normal</option>
+              <option value="HOCH">Hoch</option>
+            </select>
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label>Beschreibung</Label>
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Problem beschreiben..." className="min-h-[120px]" />
+          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Problem beschreiben..." className="min-h-[120px]"
+            inputMode="text" autoCorrect="on" autoCapitalize="sentences" spellCheck />
         </div>
         <div className="space-y-2">
           <Label>Fotos & Videos</Label>
@@ -332,19 +435,40 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [replyAttachments, setReplyAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const a = await uploadFile(files[i]);
+        setReplyAttachments((prev) => [...prev, a]);
+      }
+      toast.success('Anhang hochgeladen');
+    } catch (err) { console.error(err); toast.error('Upload fehlgeschlagen'); }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
+  };
+
+  const removeReplyAttachment = (idx: number) => setReplyAttachments((prev) => prev.filter((_, i) => i !== idx));
 
   const sendReply = async () => {
-    if (!ticket || !reply.trim()) return;
+    if (!ticket) return;
+    if (!reply.trim() && replyAttachments.length === 0) return;
     setSending(true);
     try {
       const res = await fetch(`/api/tickets/${ticket.id}/messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: reply.trim() }),
+        body: JSON.stringify({ body: reply.trim(), attachments: replyAttachments }),
       });
       if (!res.ok) { toast.error('Nachricht konnte nicht gesendet werden'); return; }
       const msg = await res.json();
       onChanged({ ...ticket, messages: [...(ticket.messages || []), msg] });
       setReply('');
+      setReplyAttachments([]);
       afterMutate();
     } catch (e) { console.error(e); toast.error('Fehler beim Senden'); }
     finally { setSending(false); }
@@ -378,6 +502,7 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
 
   const st = STATUS_META[ticket.status] || STATUS_META.OFFEN;
   const pr = PRIO_META[ticket.priority] || PRIO_META.NORMAL;
+  const cat = CATEGORY_META[ticket.category] || CATEGORY_META.SONSTIGES;
 
   return (
     <div className="space-y-4">
@@ -390,6 +515,7 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
           <span className="font-mono text-xs text-muted-foreground">{ticket.ticketNumber}</span>
           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${pr.cls}`}>{pr.label}</span>
+          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cat.cls}`}>{cat.label}</span>
         </div>
         <h2 className="text-xl font-bold">{ticket.subject}</h2>
         <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
@@ -406,7 +532,7 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
           <div className="flex items-center gap-2 pt-2 border-t">
             <span className="text-xs text-muted-foreground">Status ändern:</span>
             <select value={ticket.status} disabled={statusSaving} onChange={(e) => changeStatus(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              className="h-9 rounded-lg border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <option value="OFFEN">Offen</option>
               <option value="IN_BEARBEITUNG">In Bearbeitung</option>
               <option value="ERLEDIGT">Erledigt</option>
@@ -444,6 +570,7 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
           <div className="space-y-3">
             {ticket.messages?.map((m) => {
               const adminMsg = m.authorRole === 'ADMIN';
+              const msgAtt = parseMsgAttachments(m.attachments);
               return (
                 <div key={m.id} className={`flex ${adminMsg ? 'justify-start' : 'justify-end'}`}>
                   <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${adminMsg ? 'bg-muted' : 'bg-primary text-primary-foreground'}`}>
@@ -451,7 +578,23 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
                       {adminMsg ? <ShieldCheck className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
                       {m.authorName}
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">{m.body}</p>
+                    {m.body && <p className="text-sm whitespace-pre-wrap">{m.body}</p>}
+                    {msgAtt.length > 0 && (
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {msgAtt.map((a, i) => (
+                          <div key={i} className="rounded-lg overflow-hidden border border-black/10 bg-black/5">
+                            {a.kind === 'video' ? (
+                              <video src={a.url} controls className="w-full h-28 object-cover bg-black" />
+                            ) : (
+                              <a href={a.url} target="_blank" rel="noreferrer">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={a.url} alt="Anhang" className="w-full h-28 object-cover" />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className={`text-[10px] mt-1 ${adminMsg ? 'text-muted-foreground' : 'text-primary-foreground/70'}`}>{formatDateTime(m.createdAt)}</div>
                   </div>
                 </div>
@@ -460,9 +603,32 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
           </div>
         )}
 
+        {/* Vorschau der Anhaenge fuer die naechste Nachricht */}
+        {replyAttachments.length > 0 && (
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-4">
+            {replyAttachments.map((a, i) => (
+              <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-muted border">
+                {a.kind === 'video' ? (
+                  <div className="flex h-full w-full items-center justify-center text-muted-foreground"><VideoIcon className="h-7 w-7" /></div>
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={a.url} alt="Anhang" className="h-full w-full object-cover" />
+                )}
+                <button type="button" onClick={() => removeReplyAttachment(i)}
+                  className="absolute top-1 right-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"><X className="h-3 w-3" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="mt-4 flex items-end gap-2">
-          <Textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Antwort schreiben..." className="min-h-[52px]" />
-          <Button onClick={sendReply} disabled={sending || !reply.trim()} className="gap-1.5 shrink-0">
+          <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFiles} />
+          <Button type="button" variant="outline" size="icon" onClick={() => fileRef.current?.click()} disabled={uploading} className="shrink-0" aria-label="Anhang hinzufügen">
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+          </Button>
+          <Textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Antwort schreiben..." className="min-h-[52px]"
+            inputMode="text" autoCorrect="on" autoCapitalize="sentences" spellCheck />
+          <Button onClick={sendReply} disabled={sending || uploading || (!reply.trim() && replyAttachments.length === 0)} className="gap-1.5 shrink-0">
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>

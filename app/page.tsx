@@ -13,7 +13,7 @@ export default async function HomePage() {
     if (access.status !== 'APPROVED') {
       return <PendingApproval status={access.status} name={access.name} />;
     }
-    return <AppShell isAdmin={access.role === 'ADMIN'} />;
+    return <AppShell isAdmin={access.role === 'ADMIN'} employeeNo={access.employeeNo ?? null} />;
   } catch (e) {
     return <PendingApproval status="ERROR" />;
   }

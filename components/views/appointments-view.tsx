@@ -36,7 +36,7 @@ const WORK_DAYS = [1, 2, 3, 4, 5]; // Mo-Fr
 
 type SubTab = 'termine' | 'zeitfenster';
 
-export function AppointmentsView() {
+export function AppointmentsView({ employeeNo = null }: { employeeNo?: number | null }) {
   const [subTab, setSubTab] = useState<SubTab>('termine');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
@@ -272,7 +272,10 @@ export function AppointmentsView() {
               <CardContent className="p-3">
                 <p className="text-xs text-muted-foreground mb-2">Buchungsseite für Kunden:</p>
                 <Button variant="outline" size="sm" className="gap-1 w-full" onClick={() => {
-                  const url = `${window.location.origin}/termin`;
+                  // Mitarbeiter bekommen ihren personalisierten Link (lädt Name/Adresse dynamisch),
+                  // ansonsten die allgemeine Buchungsseite des Inhabers.
+                  const base = window.location.origin;
+                  const url = employeeNo ? `${base}/termin/ma?nr=${employeeNo}` : `${base}/termin`;
                   navigator.clipboard?.writeText(url);
                   toast.success('Link kopiert!');
                 }}>

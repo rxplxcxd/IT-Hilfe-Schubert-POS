@@ -2,13 +2,15 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getScope, canAccessCustomer } from '@/lib/access';
 
 export async function GET(request: Request) {
   try {
+    const scope = await getScope();
     const url = new URL(request.url);
     const customerId = url.searchParams.get('customerId');
     const pending = url.searchParams.get('pending');
-    const where: any = {};
+    const where: any = { ...scope.customerWhere };
     if (customerId) where.customerId = parseInt(customerId);
     if (pending === 'true') where.completed = false;
     const reminders = await prisma.reminder.findMany({
@@ -27,6 +29,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    if (!(await canAccessCustomer(parseInt(body.customerId)))) {
+      return NextResponse.json({ error: 'Kein Zugriff auf diesen Kunden' }, { status: 403 });
+    }
     const reminder = await prisma.reminder.create({
       data: {
         customerId: parseInt(body.customerId),

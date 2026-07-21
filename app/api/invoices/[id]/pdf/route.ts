@@ -3,10 +3,14 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { renderInvoicePdf } from '@/lib/pdf/render';
+import { canAccessBeleg } from '@/lib/access';
 
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
   try {
     const id = parseInt(params?.id ?? '0');
+    if (!(await canAccessBeleg('invoice', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const invoice = await prisma.invoice.findUnique({
       where: { id },
       include: { customer: true, items: true },

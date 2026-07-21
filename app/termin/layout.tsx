@@ -41,6 +41,11 @@ export default function TerminLayout({ children }: { children: React.ReactNode }
         .anim-slot { animation: scaleIn 0.3s ease-out both; }
       `}</style>
       {children}
+      <footer className="py-6 px-4 text-center text-xs text-gray-400">
+        <a href="/impressum" className="hover:text-blue-700 underline underline-offset-2">Impressum</a>
+        <span className="mx-2">&middot;</span>
+        <a href="/datenschutz" className="hover:text-blue-700 underline underline-offset-2">Datenschutz</a>
+      </footer>
     </div>
   );
 }

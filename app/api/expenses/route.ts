@@ -2,13 +2,15 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getScope } from '@/lib/access';
 
 export async function GET(request: Request) {
   try {
+    const scope = await getScope();
     const url = new URL(request.url);
     const type = url.searchParams.get('type');
     const month = url.searchParams.get('month'); // YYYY-MM
-    const where: any = {};
+    const where: any = { ...scope.ownerWhere };
     if (type) where.type = type;
     if (month) {
       const [y, m] = month.split('-').map(Number);
@@ -28,6 +30,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const scope = await getScope();
+    if (!scope.access || scope.access.status !== 'APPROVED') {
+      return NextResponse.json({ error: 'Nicht freigegeben' }, { status: 403 });
+    }
     const body = await request.json();
     const expense = await prisma.expense.create({
       data: {
@@ -37,6 +43,7 @@ export async function POST(request: Request) {
         amount: parseFloat(body.amount) || 0,
         date: body.date ? new Date(body.date) : new Date(),
         reference: body.reference || '',
+        ownerId: scope.access.id,
       },
     });
     return NextResponse.json(expense, { status: 201 });

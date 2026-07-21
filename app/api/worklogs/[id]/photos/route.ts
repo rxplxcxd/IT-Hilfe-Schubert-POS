@@ -2,9 +2,13 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { canAccessBeleg } from '@/lib/access';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
+    if (!(await canAccessBeleg('workLog', parseInt(params.id)))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const body = await request.json();
     const photo = await prisma.workLogPhoto.create({
       data: {
@@ -24,6 +28,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
+    if (!(await canAccessBeleg('workLog', parseInt(params.id)))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const url = new URL(request.url);
     const photoId = url.searchParams.get('photoId');
     if (photoId) {

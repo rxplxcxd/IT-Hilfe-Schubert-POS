@@ -2,13 +2,15 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getScope, canAccessCustomer } from '@/lib/access';
 
 export async function GET(request: Request) {
   try {
+    const scope = await getScope();
     const url = new URL(request.url);
     const customerId = url.searchParams.get('customerId');
     const status = url.searchParams.get('status');
-    const where: any = {};
+    const where: any = { ...scope.customerWhere };
     if (customerId) where.customerId = parseInt(customerId);
     if (status && status !== 'ALL') where.status = status;
     const quotes = await prisma.quote.findMany({
@@ -26,10 +28,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const scope = await getScope();
     const body = await request.json();
+    if (!(await canAccessCustomer(parseInt(body.customerId)))) {
+      return NextResponse.json({ error: 'Kein Zugriff auf diesen Kunden' }, { status: 403 });
+    }
     // Generate unified case number
     const { getNextCaseNumber, getCaseSubNumbers } = await import('@/lib/case-number');
-    const caseNumber = await getNextCaseNumber();
+    const caseNumber = await getNextCaseNumber(scope.access?.employeeNo);
     const { quoteNumber } = getCaseSubNumbers(caseNumber);
 
     const items = (body.items || []).map((item: any) => ({

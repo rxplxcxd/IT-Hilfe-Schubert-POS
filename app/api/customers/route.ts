@@ -2,10 +2,13 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getScope } from '@/lib/access';
 
 export async function GET() {
   try {
+    const scope = await getScope();
     const customers = await prisma.customer.findMany({
+      where: { ...scope.ownerWhere },
       orderBy: { lastName: 'asc' },
       include: { subscriptions: { where: { active: true } } },
     });
@@ -18,6 +21,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const scope = await getScope();
+    if (!scope.access || scope.access.status !== 'APPROVED') {
+      return NextResponse.json({ error: 'Nicht freigegeben' }, { status: 403 });
+    }
     const data = await request.json();
     const customer = await prisma.customer.create({
       data: {
@@ -31,6 +38,8 @@ export async function POST(request: Request) {
         email: data?.email ?? '',
         zone: data?.zone ?? 1,
         notes: data?.notes ?? '',
+        // Kunde gehoert dem anlegenden Mitarbeiter (Datentrennung).
+        ownerId: scope.access.id,
       },
     });
     return NextResponse.json(customer);

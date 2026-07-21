@@ -2,11 +2,16 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { canAccessBeleg } from '@/lib/access';
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
+    const id = parseInt(params.id);
+    if (!(await canAccessBeleg('workLog', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const log = await prisma.workLog.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id },
       include: { customer: true, photos: true },
     });
     if (!log) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
@@ -19,9 +24,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
+    const id = parseInt(params.id);
+    if (!(await canAccessBeleg('workLog', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const body = await request.json();
     const log = await prisma.workLog.update({
-      where: { id: parseInt(params.id) },
+      where: { id },
       data: {
         title: body.title,
         description: body.description ?? '',
@@ -38,7 +47,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    await prisma.workLog.delete({ where: { id: parseInt(params.id) } });
+    const id = parseInt(params.id);
+    if (!(await canAccessBeleg('workLog', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
+    await prisma.workLog.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('WorkLog DELETE error:', error);

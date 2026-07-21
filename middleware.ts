@@ -54,6 +54,8 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = pathname === '/login' || pathname === '/register';
   const isPublic =
     isAuthPage ||
+    pathname === '/impressum' ||
+    pathname === '/datenschutz' ||
     pathname === '/termin' ||
     pathname.startsWith('/termin/') ||
     (pathname === '/api/timeslots' && method === 'GET') ||

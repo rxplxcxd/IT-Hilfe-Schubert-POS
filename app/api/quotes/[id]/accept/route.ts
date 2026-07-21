@@ -2,10 +2,14 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { canAccessBeleg } from '@/lib/access';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
     const quoteId = parseInt(params.id);
+    if (!(await canAccessBeleg('quote', quoteId))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const quote = await prisma.quote.findUnique({
       where: { id: quoteId },
       include: { items: true, customer: true },

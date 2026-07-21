@@ -4,9 +4,13 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { google } from 'googleapis';
 import { sendEmail } from '@/lib/email';
+import { canAccessCustomer } from '@/lib/access';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
+    if (!(await canAccessCustomer(parseInt(params.id)))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const customer = await prisma.customer.findUnique({ where: { id: parseInt(params.id) } });
     if (!customer) return NextResponse.json({ error: 'Kunde nicht gefunden' }, { status: 404 });
     if (!customer.email) return NextResponse.json({ error: 'Kunde hat keine E-Mail' }, { status: 400 });

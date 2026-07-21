@@ -2,10 +2,14 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { canAccessBeleg } from '@/lib/access';
 
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
   try {
     const id = parseInt(params?.id ?? '0');
+    if (!(await canAccessBeleg('invoice', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const invoice = await prisma.invoice.update({
       where: { id },
       data: {

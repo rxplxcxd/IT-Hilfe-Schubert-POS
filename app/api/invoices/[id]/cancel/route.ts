@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getNextStornoNumber } from '@/lib/case-number';
+import { canAccessBeleg } from '@/lib/access';
 
 /**
  * POST /api/invoices/[id]/cancel
@@ -12,6 +13,9 @@ import { getNextStornoNumber } from '@/lib/case-number';
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
     const id = parseInt(params.id);
+    if (!(await canAccessBeleg('invoice', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const body = await request.json().catch(() => ({}));
     const reason = body.reason || '';
 

@@ -43,6 +43,7 @@ function renderPage(content: string) {
 </head>
 <body>
   <div class="card">${content}</div>
+  <div style="margin-top:16px;color:#94a3b8;font-size:12px;text-align:center;"><a href="/impressum" style="color:#64748b;">Impressum</a> &middot; <a href="/datenschutz" style="color:#64748b;">Datenschutz</a></div>
 </body>
 </html>`,
     { headers: { 'Content-Type': 'text/html; charset=utf-8' } }

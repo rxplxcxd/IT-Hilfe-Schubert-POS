@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { formatCurrency } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
 import { renderInvoicePdf } from '@/lib/pdf/render';
+import { canAccessBeleg } from '@/lib/access';
 
 function formatDateDE(date: Date | string | null | undefined): string {
   if (!date) return '-';
@@ -15,6 +16,9 @@ function formatDateDE(date: Date | string | null | undefined): string {
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
   try {
     const id = parseInt(params?.id ?? '0');
+    if (!(await canAccessBeleg('invoice', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const invoice = await prisma.invoice.findUnique({
       where: { id },
       include: { customer: true, items: true },

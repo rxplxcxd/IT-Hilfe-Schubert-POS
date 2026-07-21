@@ -2,9 +2,17 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getScope } from '@/lib/access';
 
 export async function GET(request: Request) {
   try {
+    const scope = await getScope();
+    const custFilter: any = scope.isAdmin
+      ? {}
+      : scope.access && scope.access.status === 'APPROVED'
+      ? { ownerId: scope.access.id }
+      : { ownerId: -1 };
+
     const url = new URL(request.url);
     const month = url.searchParams.get('month'); // YYYY-MM
     if (!month) return NextResponse.json({ error: 'month parameter required' }, { status: 400 });
@@ -16,7 +24,7 @@ export async function GET(request: Request) {
 
     // Invoices this month
     const invoices = await prisma.invoice.findMany({
-      where: { createdAt: { gte: start, lt: end } },
+      where: { createdAt: { gte: start, lt: end }, customer: custFilter },
       include: { customer: true, items: true },
       orderBy: { createdAt: 'asc' },
     });
@@ -28,7 +36,7 @@ export async function GET(request: Request) {
 
     // Expenses this month
     const expenses = await prisma.expense.findMany({
-      where: { date: { gte: start, lt: end } },
+      where: { date: { gte: start, lt: end }, ...scope.ownerWhere },
       orderBy: { date: 'asc' },
     });
     const totalExpenses = expenses.filter((e) => e.type === 'AUSGABE').reduce((s, e) => s + e.amount, 0);
@@ -36,7 +44,7 @@ export async function GET(request: Request) {
 
     // New customers this month
     const newCustomers = await prisma.customer.count({
-      where: { createdAt: { gte: start, lt: end } },
+      where: { createdAt: { gte: start, lt: end }, ...custFilter },
     });
 
     const settings = await prisma.settings.findUnique({ where: { id: 1 } });

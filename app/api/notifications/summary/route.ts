@@ -14,11 +14,13 @@ export async function GET() {
       return NextResponse.json(EMPTY, { status: 200 });
     }
     const isAdmin = access.role === 'ADMIN';
+    // Datentrennung: Mitarbeiter sehen nur eigene faellige Erinnerungen.
+    const custFilter: any = isAdmin ? {} : { ownerId: access.id };
 
     const [pendingUsers, openAppointments, dueReminders] = await Promise.all([
       isAdmin ? prisma.appUser.count({ where: { status: 'PENDING' } }) : Promise.resolve(0),
-      prisma.appointment.count({ where: { status: 'OFFEN' } }),
-      prisma.reminder.count({ where: { completed: false, dueDate: { lte: new Date() } } }),
+      isAdmin ? prisma.appointment.count({ where: { status: 'OFFEN' } }) : Promise.resolve(0),
+      prisma.reminder.count({ where: { completed: false, dueDate: { lte: new Date() }, customer: custFilter } }),
     ]);
 
     const total = pendingUsers + openAppointments + dueReminders;

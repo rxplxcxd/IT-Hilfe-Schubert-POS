@@ -87,3 +87,75 @@ export async function requireApprovedUser(): Promise<AccessInfo | null> {
   if (!access || access.status !== 'APPROVED') return null;
   return access;
 }
+
+/* --------------------------------------------------------------------------
+ * Datentrennung (Data-Isolation)
+ *
+ * Jeder Kunde gehoert dem Mitarbeiter, der ihn angelegt hat (Customer.ownerId).
+ * Alle Belege (Rechnungen, Angebote, Auftraege, Arbeitsberichte, Geraete,
+ * Erinnerungen) haengen an einem Kunden und erben so den Besitzer.
+ * Ausgaben (Expense) haben einen eigenen ownerId.
+ *
+ * - Admin sieht ALLES.
+ * - Mitarbeiter sieht NUR eigene Daten.
+ * - Nicht freigegeben / nicht eingeloggt -> sieht NICHTS.
+ * ------------------------------------------------------------------------ */
+export interface Scope {
+  access: AccessInfo | null;
+  isAdmin: boolean;
+  /** where-Filter fuer Modelle mit direktem ownerId-Feld (Customer, Expense). */
+  ownerWhere: Record<string, any>;
+  /** where-Filter fuer Belege ueber die Kunden-Relation (customer.ownerId). */
+  customerWhere: Record<string, any>;
+}
+
+export async function getScope(): Promise<Scope> {
+  const access = await getAccessForCurrentUser();
+  const isAdmin = !!access && access.role === 'ADMIN' && access.status === 'APPROVED';
+  if (isAdmin) {
+    return { access, isAdmin: true, ownerWhere: {}, customerWhere: {} };
+  }
+  if (access && access.status === 'APPROVED') {
+    return {
+      access,
+      isAdmin: false,
+      ownerWhere: { ownerId: access.id },
+      customerWhere: { customer: { ownerId: access.id } },
+    };
+  }
+  // Nicht freigegeben / nicht eingeloggt -> unmoeglicher Filter, damit nichts sichtbar ist.
+  return { access, isAdmin: false, ownerWhere: { id: -1 }, customerWhere: { id: -1 } };
+}
+
+/** Darf der aktuelle Nutzer auf diesen Kunden zugreifen? */
+export async function canAccessCustomer(customerId: number): Promise<boolean> {
+  const scope = await getScope();
+  if (scope.isAdmin) return true;
+  if (!scope.access || scope.access.status !== 'APPROVED') return false;
+  const c = await prisma.customer.findUnique({ where: { id: customerId }, select: { ownerId: true } });
+  return !!c && c.ownerId === scope.access.id;
+}
+
+/** Darf der aktuelle Nutzer auf diesen Beleg zugreifen? (Besitz ueber Kunden-Relation) */
+export async function canAccessBeleg(
+  model: 'invoice' | 'quote' | 'order' | 'workLog' | 'deviceInventory' | 'reminder',
+  id: number,
+): Promise<boolean> {
+  const scope = await getScope();
+  if (scope.isAdmin) return true;
+  if (!scope.access || scope.access.status !== 'APPROVED') return false;
+  const rec: any = await (prisma as any)[model].findUnique({
+    where: { id },
+    select: { customer: { select: { ownerId: true } } },
+  });
+  return !!rec && rec.customer?.ownerId === scope.access.id;
+}
+
+/** Darf der aktuelle Nutzer auf diese Ausgabe zugreifen? */
+export async function canAccessExpense(id: number): Promise<boolean> {
+  const scope = await getScope();
+  if (scope.isAdmin) return true;
+  if (!scope.access || scope.access.status !== 'APPROVED') return false;
+  const rec = await prisma.expense.findUnique({ where: { id }, select: { ownerId: true } });
+  return !!rec && rec.ownerId === scope.access.id;
+}

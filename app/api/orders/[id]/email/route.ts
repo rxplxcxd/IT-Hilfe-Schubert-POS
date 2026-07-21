@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/email';
 import { renderOrderPdf } from '@/lib/pdf/render';
+import { canAccessBeleg } from '@/lib/access';
 
 function formatDateDE(date: Date | string | null | undefined): string {
   if (!date) return '-';
@@ -14,6 +15,9 @@ function formatDateDE(date: Date | string | null | undefined): string {
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const id = parseInt(params?.id ?? '0');
+    if (!(await canAccessBeleg('order', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const order = await prisma.order.findUnique({
       where: { id },
       include: { customer: true, photos: true },

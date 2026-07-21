@@ -2,12 +2,15 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getScope, canAccessCustomer } from '@/lib/access';
 
 export async function GET(request: Request) {
   try {
+    const scope = await getScope();
     const url = new URL(request.url);
     const customerId = url.searchParams.get('customerId');
-    const where = customerId ? { customerId: parseInt(customerId) } : {};
+    const where: any = { ...scope.customerWhere };
+    if (customerId) where.customerId = parseInt(customerId);
     const logs = await prisma.workLog.findMany({
       where,
       include: { customer: true, photos: true },
@@ -24,6 +27,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    if (!(await canAccessCustomer(parseInt(body.customerId)))) {
+      return NextResponse.json({ error: 'Kein Zugriff auf diesen Kunden' }, { status: 403 });
+    }
     const log = await prisma.workLog.create({
       data: {
         customerId: parseInt(body.customerId),

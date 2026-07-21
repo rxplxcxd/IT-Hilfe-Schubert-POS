@@ -2,9 +2,18 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getScope } from '@/lib/access';
 
 export async function GET(request: Request) {
   try {
+    const scope = await getScope();
+    // Kunden-Filter fuer Datentrennung: Admin sieht alles, Mitarbeiter nur eigene.
+    const custFilter: any = scope.isAdmin
+      ? {}
+      : scope.access && scope.access.status === 'APPROVED'
+      ? { ownerId: scope.access.id }
+      : { ownerId: -1 };
+
     const url = new URL(request.url);
     const period = url.searchParams.get('period') || 'monthly'; // daily, weekly, monthly, yearly
     const months = parseInt(url.searchParams.get('months') || '6');
@@ -37,6 +46,7 @@ export async function GET(request: Request) {
           status: 'BEZAHLT',
           isCancellation: false,
           paidAt: { gte: start, lt: end },
+          customer: custFilter,
         },
       });
       const revenue = invoices.reduce((s, inv) => s + inv.total, 0);
@@ -50,7 +60,7 @@ export async function GET(request: Request) {
 
     // Top services (only from non-cancelled, non-storno invoices)
     const allItems = await prisma.invoiceItem.findMany({
-      where: { invoice: { status: { not: 'STORNIERT' }, isCancellation: false } },
+      where: { invoice: { status: { not: 'STORNIERT' }, isCancellation: false, customer: custFilter } },
       include: { invoice: true },
     });
     const serviceMap: Record<string, { count: number; revenue: number }> = {};
@@ -66,6 +76,7 @@ export async function GET(request: Request) {
 
     // Top customers (only paid, non-cancelled)
     const customers = await prisma.customer.findMany({
+      where: custFilter,
       include: { invoices: { where: { status: 'BEZAHLT', isCancellation: false } } },
     });
     const topCustomers = customers
@@ -84,6 +95,7 @@ export async function GET(request: Request) {
         status: 'BEZAHLT',
         isCancellation: false,
         paidAt: { gte: rangeStart },
+        customer: custFilter,
       },
     });
     const periodRevenue = periodInvoices.reduce((s, inv) => s + inv.total, 0);
@@ -93,20 +105,20 @@ export async function GET(request: Request) {
     const totalRevenue = monthlyData.reduce((s, m) => s + m.revenue, 0);
     const totalInvoices = monthlyData.reduce((s, m) => s + m.count, 0);
     const avgInvoice = totalInvoices > 0 ? totalRevenue / totalInvoices : 0;
-    const openInvoices = await prisma.invoice.count({ where: { status: 'OFFEN', isCancellation: false } });
-    const openAmount = (await prisma.invoice.findMany({ where: { status: 'OFFEN', isCancellation: false } })).reduce((s, i) => s + i.total, 0);
-    const totalCustomers = await prisma.customer.count();
-    const activeSubscriptions = await prisma.subscription.count({ where: { active: true } });
+    const openInvoices = await prisma.invoice.count({ where: { status: 'OFFEN', isCancellation: false, customer: custFilter } });
+    const openAmount = (await prisma.invoice.findMany({ where: { status: 'OFFEN', isCancellation: false, customer: custFilter } })).reduce((s, i) => s + i.total, 0);
+    const totalCustomers = await prisma.customer.count({ where: custFilter });
+    const activeSubscriptions = await prisma.subscription.count({ where: { active: true, customer: custFilter } });
 
     // Storno stats
     const cancelledInvoices = await prisma.invoice.findMany({
-      where: { status: 'STORNIERT', isCancellation: false },
+      where: { status: 'STORNIERT', isCancellation: false, customer: custFilter },
     });
     const cancelledAmount = cancelledInvoices.reduce((s, i) => s + i.total, 0);
 
     // Expenses summary (only type AUSGABE counts as expense)
     const periodExpenses = await prisma.expense.findMany({
-      where: { date: { gte: new Date(now.getFullYear(), now.getMonth() - months + 1, 1) } },
+      where: { date: { gte: new Date(now.getFullYear(), now.getMonth() - months + 1, 1) }, ...scope.ownerWhere },
     });
     const totalExpenses = periodExpenses.filter((e) => e.type === 'AUSGABE').reduce((s, e) => s + e.amount, 0);
 
@@ -114,7 +126,7 @@ export async function GET(request: Request) {
     const profit = totalRevenue - totalExpenses;
 
     // Pending reminders
-    const pendingReminders = await prisma.reminder.count({ where: { completed: false, dueDate: { lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) } } });
+    const pendingReminders = await prisma.reminder.count({ where: { completed: false, dueDate: { lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) }, customer: custFilter } });
 
     return NextResponse.json({
       monthlyData,

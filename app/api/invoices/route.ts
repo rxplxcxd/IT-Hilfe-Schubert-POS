@@ -2,10 +2,13 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getScope, canAccessCustomer } from '@/lib/access';
 
 export async function GET() {
   try {
+    const scope = await getScope();
     const invoices = await prisma.invoice.findMany({
+      where: { ...scope.customerWhere },
       include: { customer: true, items: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -18,7 +21,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const scope = await getScope();
     const data = await request.json();
+    if (!(await canAccessCustomer(data?.customerId))) {
+      return NextResponse.json({ error: 'Kein Zugriff auf diesen Kunden' }, { status: 403 });
+    }
     const items = data?.items ?? [];
 
     // Calculate subtotal
@@ -29,7 +36,7 @@ export async function POST(request: Request) {
 
     // Generate unified case number
     const { getNextCaseNumber, getCaseSubNumbers } = await import('@/lib/case-number');
-    const caseNumber = data?.caseNumber || await getNextCaseNumber();
+    const caseNumber = data?.caseNumber || await getNextCaseNumber(scope.access?.employeeNo);
     const { invoiceNumber } = getCaseSubNumbers(caseNumber);
 
     const invoice = await prisma.invoice.create({

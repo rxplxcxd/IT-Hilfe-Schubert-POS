@@ -20,6 +20,7 @@ model Customer {
   email     String   @default("")
   zone      Int      @default(1)
   notes     String   @default("")
+  ownerId   Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   invoices  Invoice[]
@@ -29,6 +30,8 @@ model Customer {
   quotes    Quote[]
   reminders Reminder[]
   orders    Order[]
+
+  @@index([ownerId])
 }
 
 model Product {
@@ -154,11 +157,13 @@ model Expense {
   amount      Float
   date        DateTime @default(now())
   reference   String   @default("") // e.g. invoice number or receipt
+  ownerId     Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([type])
   @@index([date])
+  @@index([ownerId])
 }
 
 model Quote {

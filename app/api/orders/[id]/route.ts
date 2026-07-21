@@ -2,11 +2,16 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { canAccessBeleg } from '@/lib/access';
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
+    const id = parseInt(params.id);
+    if (!(await canAccessBeleg('order', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
     const order = await prisma.order.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id },
       include: { customer: true, photos: true },
     });
     if (!order) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });
@@ -18,8 +23,11 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
-    const body = await request.json();
     const id = parseInt(params.id);
+    if (!(await canAccessBeleg('order', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
+    const body = await request.json();
     const data: any = {};
 
     // Allow updating specific fields
@@ -57,7 +65,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    await prisma.order.delete({ where: { id: parseInt(params.id) } });
+    const id = parseInt(params.id);
+    if (!(await canAccessBeleg('order', id))) {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
+    await prisma.order.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

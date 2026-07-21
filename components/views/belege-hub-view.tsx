@@ -30,6 +30,7 @@ export function BelegeHubView({ viewInvoiceId, onViewInvoice }: {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [orderFilter, setOrderFilter] = useState('ALL');
+  const [orderSearch, setOrderSearch] = useState('');
   const [viewingOrderId, setViewingOrderId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -201,6 +202,11 @@ export function BelegeHubView({ viewInvoiceId, onViewInvoice }: {
                 </CardContent>
               </Card>
             ) : (
+              <>
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input className="pl-9" placeholder="Auftrag suchen..." value={orderSearch} onChange={(e: any) => setOrderSearch(e.target.value)} />
+              </div>
               <div className="flex items-center gap-2">
                 {/* Filter */}
                 <div className="flex gap-1 flex-1 overflow-x-auto">
@@ -222,6 +228,7 @@ export function BelegeHubView({ viewInvoiceId, onViewInvoice }: {
                   <Plus className="w-5 h-5" />
                 </Button>
               </div>
+              </>
             )}
 
             {/* Orders list */}
@@ -237,7 +244,11 @@ export function BelegeHubView({ viewInvoiceId, onViewInvoice }: {
                 </Card>
               ) : (
                 <div className="space-y-2">
-                  {orders.map((o) => {
+                  {orders.filter((o) => {
+                    if (!orderSearch.trim()) return true;
+                    const q = orderSearch.toLowerCase();
+                    return `${o.orderNumber} ${o.title} ${o.customer?.firstName ?? ''} ${o.customer?.lastName ?? ''}`.toLowerCase().includes(q);
+                  }).map((o) => {
                     const isOpen = o.status === 'OFFEN';
                     const isActive = o.status === 'IN_BEARBEITUNG';
                     const isDone = o.status === 'ABGESCHLOSSEN';

@@ -6,7 +6,7 @@ import { Resend } from 'resend';
  */
 
 const resendApiKey = process.env.RESEND_API_KEY || '';
-const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+const fromEmail = process.env.RESEND_FROM_EMAIL || 'IT-Hilfe Schubert <kontakt@ithilfeschubert.xyz>';
 
 export interface EmailAttachment {
   filename: string;

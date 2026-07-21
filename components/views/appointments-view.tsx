@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CalendarDays, Clock, Plus, Trash2, User, Phone, CheckCircle2, X, AlertCircle, ExternalLink, Mail } from 'lucide-react';
+import { CalendarDays, Clock, Plus, Trash2, User, Phone, CheckCircle2, X, AlertCircle, ExternalLink, Mail, Search } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +42,7 @@ export function AppointmentsView() {
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('OFFEN');
+  const [appointmentSearch, setAppointmentSearch] = useState('');
   const [viewApp, setViewApp] = useState<Appointment | null>(null);
   // Zeitfenster-Formular
   const [newDay, setNewDay] = useState(1);
@@ -215,6 +216,10 @@ export function AppointmentsView() {
         {/* TERMINE */}
         {subTab === 'termine' && (
           <>
+            <div className="relative mb-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input className="pl-9" placeholder="Termin suchen (Name, Telefon)..." value={appointmentSearch} onChange={(e: any) => setAppointmentSearch(e.target.value)} />
+            </div>
             <div className="flex gap-1 overflow-x-auto">
               {['OFFEN', 'BESTAETIGT', 'ERLEDIGT', 'ABGESAGT', 'ALL'].map(f => (
                 <button key={f} onClick={() => setFilter(f)}
@@ -228,13 +233,19 @@ export function AppointmentsView() {
 
             {loading ? (
               <div className="flex justify-center py-8"><div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" /></div>
-            ) : appointments.length === 0 ? (
+            ) : (() => {
+              const searchFiltered = appointments.filter((a) => {
+                if (!appointmentSearch.trim()) return true;
+                const q = appointmentSearch.toLowerCase();
+                return `${a.customerName} ${a.customerPhone} ${a.customerEmail} ${a.description}`.toLowerCase().includes(q);
+              });
+              return searchFiltered.length === 0 ? (
               <Card className="shadow-sm"><CardContent className="p-6 text-center">
                 <CalendarDays className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
-                <p className="text-muted-foreground text-sm">Keine Termine</p>
+                <p className="text-muted-foreground text-sm">{appointments.length === 0 ? 'Keine Termine' : 'Keine Treffer'}</p>
               </CardContent></Card>
             ) : (
-              appointments.map(a => (
+              searchFiltered.map(a => (
                 <Card key={a.id} className="shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setViewApp(a)}>
                   <CardContent className="p-3 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -253,7 +264,8 @@ export function AppointmentsView() {
                   </CardContent>
                 </Card>
               ))
-            )}
+            );
+            })()}
 
             {/* Link zur öffentlichen Buchungsseite */}
             <Card className="shadow-sm border-dashed">

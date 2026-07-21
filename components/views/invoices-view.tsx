@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FileText, ArrowLeft, CheckCircle2, Clock, Download, Mail, Send, Filter, AlertCircle, Banknote, CreditCard, XCircle, Ban } from 'lucide-react';
+import { FileText, ArrowLeft, CheckCircle2, Clock, Download, Mail, Send, Filter, AlertCircle, Banknote, CreditCard, XCircle, Ban, Search } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,7 @@ export function InvoicesView({ viewInvoiceId, onViewInvoice }: {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'ALL' | 'OFFEN' | 'BEZAHLT' | 'STORNIERT'>('ALL');
+  const [invoiceSearch, setInvoiceSearch] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -65,8 +66,13 @@ export function InvoicesView({ viewInvoiceId, onViewInvoice }: {
   }, [viewInvoiceId, invoices]);
 
   const filtered = (invoices ?? []).filter((inv: Invoice) => {
-    if (filter === 'ALL') return true;
-    return inv?.status === filter;
+    if (filter !== 'ALL' && inv?.status !== filter) return false;
+    if (invoiceSearch.trim()) {
+      const q = invoiceSearch.toLowerCase();
+      const hay = `${inv.invoiceNumber} ${inv.caseNumber} ${inv.customer?.firstName ?? ''} ${inv.customer?.lastName ?? ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
   });
 
   const handleMarkPaid = async (invoiceId: number) => {
@@ -343,7 +349,11 @@ export function InvoicesView({ viewInvoiceId, onViewInvoice }: {
         <h2 className="font-display font-semibold text-lg flex-1">Rechnungen</h2>
       </div>
 
-      {/* Filter */}
+      {/* Search + Filter */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input className="pl-9" placeholder="Rechnung oder Kunde suchen..." value={invoiceSearch} onChange={(e: any) => setInvoiceSearch(e.target.value)} />
+      </div>
       <div className="flex gap-2 flex-wrap">
         {(['ALL', 'OFFEN', 'BEZAHLT', 'STORNIERT'] as const).map((f) => (
           <Button

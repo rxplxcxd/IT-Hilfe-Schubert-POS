@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, ShoppingCart, FileText, Settings, Mail, Package, Wallet, ClipboardList, CalendarDays, LogOut, Bell, X, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, FileText, Settings, Mail, Package, Wallet, ClipboardList, CalendarDays, LogOut, Bell, X, LifeBuoy, ArrowLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { NotificationProvider, useNotifications } from './notification-provider';
 import { notifyInfo, notifySuccess } from '@/lib/toast';
+import { APP_VERSION } from '@/lib/version';
+import { toast } from 'sonner';
 import { DashboardView } from './views/dashboard-view';
 import { CustomersView } from './views/customers-view';
 import { BookingView } from './views/booking-view';
@@ -52,9 +54,19 @@ export function AppShell({ isAdmin = false }: { isAdmin?: boolean }) {
   );
 }
 
+/** Snapshot of view state for back-navigation. */
+interface ViewState {
+  tab: TabId;
+  settingsSection?: string;
+  editCustomerId?: number | null;
+  viewInvoiceId?: number | null;
+  viewCustomerDetailId?: number | null;
+  composeEmailTo?: string | null;
+}
+
 function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
   const router = useRouter();
-  const { pendingUsers, openAppointments, dueReminders, openTickets, total } = useNotifications();
+  const { pendingUsers, openAppointments, dueReminders, openTickets, total, refresh } = useNotifications();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [settingsSection, setSettingsSection] = useState<string | undefined>(undefined);
   const [showMore, setShowMore] = useState(false);
@@ -65,6 +77,40 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
   const [viewCustomerDetailId, setViewCustomerDetailId] = useState<number | null>(null);
   const [composeEmailTo, setComposeEmailTo] = useState<string | null>(null);
 
+  // ---- View history stack ----
+  const viewHistory = useRef<ViewState[]>([]);
+
+  const currentSnapshot = useCallback((): ViewState => ({
+    tab: activeTab,
+    settingsSection,
+    editCustomerId,
+    viewInvoiceId,
+    viewCustomerDetailId,
+    composeEmailTo,
+  }), [activeTab, settingsSection, editCustomerId, viewInvoiceId, viewCustomerDetailId, composeEmailTo]);
+
+  const pushHistory = useCallback(() => {
+    const snap = currentSnapshot();
+    viewHistory.current.push(snap);
+    // Limit stack depth to 20
+    if (viewHistory.current.length > 20) viewHistory.current.shift();
+  }, [currentSnapshot]);
+
+  const canGoBack = viewHistory.current.length > 0;
+
+  const goBack = useCallback(() => {
+    const prev = viewHistory.current.pop();
+    if (!prev) return;
+    setActiveTab(prev.tab);
+    setSettingsSection(prev.settingsSection);
+    setEditCustomerId(prev.editCustomerId ?? null);
+    setViewInvoiceId(prev.viewInvoiceId ?? null);
+    setViewCustomerDetailId(prev.viewCustomerDetailId ?? null);
+    setComposeEmailTo(prev.composeEmailTo ?? null);
+    setShowMore(false);
+    setShowNotif(false);
+  }, []);
+
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -72,7 +118,8 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
     router.refresh();
   };
 
-  const navigateTo = (tab: TabId, section?: string) => {
+  const navigateTo = useCallback((tab: TabId, section?: string) => {
+    pushHistory();
     setActiveTab(tab);
     setSettingsSection(tab === 'settings' ? section : undefined);
     setEditCustomerId(null);
@@ -81,7 +128,40 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
     setComposeEmailTo(null);
     setShowMore(false);
     setShowNotif(false);
-  };
+  }, [pushHistory]);
+
+  // ---- Ticket live-toast polling ----
+  const lastTicketCheck = useRef<string>('');
+  useEffect(() => {
+    let mounted = true;
+    const checkNewMessages = async () => {
+      try {
+        const res = await fetch('/api/tickets?_t=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) return;
+        const tickets: any[] = await res.json();
+        // Find tickets with unread messages
+        const unreadTickets = tickets.filter((t: any) => isAdmin ? t.adminUnread : t.employeeUnread);
+        if (unreadTickets.length > 0 && mounted) {
+          const newest = unreadTickets[0];
+          const key = `${newest.id}-${newest.updatedAt}`;
+          if (lastTicketCheck.current && lastTicketCheck.current !== key && lastTicketCheck.current !== '') {
+            // Show toast for new ticket message
+            toast.warning(`Ticket ${newest.ticketNumber}`, {
+              description: newest.subject,
+              action: { label: 'Ansehen', onClick: () => navigateTo('tickets') },
+              duration: 8000,
+            });
+            refresh();
+          }
+          lastTicketCheck.current = key;
+        }
+      } catch { /* ignore */ }
+    };
+    // Initial baseline (no toast on first load)
+    checkNewMessages().then(() => { if (!lastTicketCheck.current) lastTicketCheck.current = 'init'; });
+    const interval = setInterval(checkNewMessages, 30000);
+    return () => { mounted = false; clearInterval(interval); };
+  }, [isAdmin, navigateTo, refresh]);
 
   // Einmalige Willkommens-Zusammenfassung beim ersten Laden
   const welcomed = useRef(false);
@@ -130,21 +210,64 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
         <main className="flex-1 overflow-y-auto">
           <CustomerDetailView
             customerId={viewCustomerDetailId}
-            onBack={() => setViewCustomerDetailId(null)}
-            onWriteEmail={(email) => { setComposeEmailTo(email); setActiveTab('email' as TabId); setViewCustomerDetailId(null); }}
-            onViewInvoice={(id) => { setViewInvoiceId(id); setActiveTab('belege' as TabId); setViewCustomerDetailId(null); }}
+            onBack={() => goBack()}
+            onWriteEmail={(email) => { pushHistory(); setComposeEmailTo(email); setActiveTab('email' as TabId); setViewCustomerDetailId(null); }}
+            onViewInvoice={(id) => { pushHistory(); setViewInvoiceId(id); setActiveTab('belege' as TabId); setViewCustomerDetailId(null); }}
           />
         </main>
       </div>
     );
   }
 
+  const activeLabel = tabs.find((t) => t.id === activeTab)?.label ?? '';
   return (
-    <div className="flex flex-col h-[100dvh] bg-background">
+    <div className="flex h-[100dvh] bg-background">
+      {/* Desktop-Seitenleiste (Paket C) */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-card border-r border-border shrink-0">
+        <div className="flex items-center gap-2.5 px-4 h-[60px] border-b border-border shrink-0">
+          <div className="w-9 h-9 bg-primary text-primary-foreground rounded-lg flex items-center justify-center text-sm font-bold">IS</div>
+          <div className="min-w-0">
+            <h1 className="font-display text-sm font-bold leading-tight truncate">IT-Hilfe Schubert</h1>
+            <p className="text-xs text-muted-foreground">Kassensystem</p>
+          </div>
+        </div>
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            const badge = badgeForTab(tab.id);
+            return (
+              <button key={tab.id} onClick={() => navigateTo(tab.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${isActive ? 'bg-primary/10 text-primary font-semibold' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                <Icon className="w-[18px] h-[18px] shrink-0" />
+                <span className="flex-1 text-left">{tab.label}</span>
+                {badge > 0 && <CountBadge count={badge} ring="ring-card" />}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="p-3 border-t border-border">
+          <p className="px-3 pb-2 text-[11px] text-muted-foreground">Version {APP_VERSION}</p>
+          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+            <LogOut className="w-[18px] h-[18px]" /><span>Abmelden</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Hauptspalte */}
+      <div className="flex flex-col flex-1 min-w-0 h-[100dvh]">
       <header className="bg-primary text-primary-foreground px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-sm font-bold">IS</div>
-          <div><h1 className="font-display text-base font-bold leading-tight">IT-Hilfe Schubert</h1><p className="text-xs opacity-80">Kassensystem</p></div>
+          {canGoBack && (
+            <button onClick={goBack} title="Zur\u00fcck" className="flex items-center justify-center rounded-lg bg-white/15 hover:bg-white/25 w-8 h-8 transition-colors -ml-1 mr-0.5">
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          )}
+          <div className="flex items-center gap-2 lg:hidden">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-sm font-bold">IS</div>
+            <div><h1 className="font-display text-base font-bold leading-tight">IT-Hilfe Schubert</h1><p className="text-xs opacity-80">Kassensystem</p></div>
+          </div>
+          <h1 className="hidden lg:block font-display text-lg font-bold">{activeLabel}</h1>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowNotif((v) => !v)} title="Benachrichtigungen" className="relative flex items-center justify-center rounded-lg bg-white/15 hover:bg-white/25 w-9 h-9 transition-colors">
@@ -206,6 +329,7 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
       )}
 
       <main className="flex-1 overflow-y-auto">
+        <div className="w-full lg:max-w-6xl lg:mx-auto lg:px-2">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -217,15 +341,15 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
             {activeTab === 'dashboard' && (
               <DashboardView
                 onNavigate={navigateTo}
-                onViewInvoice={(id: number) => { setViewInvoiceId(id); setActiveTab('belege' as TabId); }}
+                onViewInvoice={(id: number) => { pushHistory(); setViewInvoiceId(id); setActiveTab('belege' as TabId); }}
               />
             )}
             {activeTab === 'customers' && (
               <CustomersView
                 isAdmin={isAdmin}
                 editCustomerId={editCustomerId}
-                onEditCustomer={setEditCustomerId}
-                onViewCustomerDetail={(id: number) => setViewCustomerDetailId(id)}
+                onEditCustomer={(id: number | null) => { if (id !== null) pushHistory(); setEditCustomerId(id); }}
+                onViewCustomerDetail={(id: number) => { pushHistory(); setViewCustomerDetailId(id); }}
               />
             )}
             {activeTab === 'booking' && (
@@ -242,6 +366,7 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
             {activeTab === 'settings' && <SettingsView isAdmin={isAdmin} initialSection={settingsSection} />}
           </motion.div>
         </AnimatePresence>
+        </div>
       </main>
 
       {showMore && (
@@ -263,7 +388,7 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      <nav className="bg-card border-t border-border shrink-0 pb-safe">
+      <nav className="lg:hidden bg-card border-t border-border shrink-0 pb-safe">
         <div className="flex">
           {mainTabs.map((tab) => {
             const Icon = tab.icon;
@@ -286,6 +411,7 @@ function AppShellInner({ isAdmin }: { isAdmin: boolean }) {
           </button>
         </div>
       </nav>
+      </div>
     </div>
   );
 }

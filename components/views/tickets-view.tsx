@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, ArrowLeft, Send, Paperclip, X, LifeBuoy, Image as ImageIcon,
-  Video as VideoIcon, Loader2, ShieldCheck, User as UserIcon,
+  Video as VideoIcon, Loader2, ShieldCheck, User as UserIcon, Search, Filter,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -66,6 +66,8 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<Ticket | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -92,6 +94,17 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
     finally { setDetailLoading(false); }
   }, [refresh]);
 
+  // Filter tickets
+  const filteredTickets = tickets.filter((t) => {
+    if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const haystack = `${t.ticketNumber} ${t.subject} ${t.createdByName}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
   // ---- LIST ----
   if (mode === 'list') {
     return (
@@ -110,16 +123,34 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
           </Button>
         </div>
 
+        {/* Search + Status Filter */}
+        <div className="flex gap-2 flex-wrap">
+          <div className="flex-1 relative min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input className="pl-9" placeholder="Ticket suchen..." value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
+          </div>
+          <div className="flex gap-1 overflow-x-auto">
+            {['ALL', 'OFFEN', 'IN_BEARBEITUNG', 'ERLEDIGT'].map((f) => (
+              <button key={f} onClick={() => setStatusFilter(f)}
+                className={`py-1.5 px-3 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
+                  statusFilter === f ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                }`}>
+                {f === 'ALL' ? 'Alle' : (STATUS_META[f]?.label || f)}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : tickets.length === 0 ? (
+        ) : filteredTickets.length === 0 ? (
           <Card><CardContent className="py-14 text-center text-muted-foreground">
             <LifeBuoy className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            <p>Noch keine Tickets vorhanden.</p>
+            <p>{tickets.length === 0 ? 'Noch keine Tickets vorhanden.' : 'Keine Tickets f\u00fcr diesen Filter.'}</p>
           </CardContent></Card>
         ) : (
           <div className="space-y-2.5">
-            {tickets.map((t) => {
+            {filteredTickets.map((t) => {
               const st = STATUS_META[t.status] || STATUS_META.OFFEN;
               const pr = PRIO_META[t.priority] || PRIO_META.NORMAL;
               const unread = isAdmin ? t.adminUnread : t.employeeUnread;

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { APP_VERSION } from '@/lib/version';
 
 interface SettingsData {
   companyName: string;
@@ -363,6 +364,12 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
         {saving ? 'Wird gespeichert...' : 'Einstellungen speichern'}
       </Button>
       )}
+
+      <div className="pt-2 pb-1 text-center">
+        <p className="text-xs text-muted-foreground">
+          IT-Hilfe Schubert &middot; Version {APP_VERSION}
+        </p>
+      </div>
     </div>
   );
 }

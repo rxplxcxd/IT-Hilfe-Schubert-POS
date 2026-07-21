@@ -9,6 +9,8 @@ interface Props {
   phone: string;
   email: string;
   logoUrl: string;
+  employeeNo?: number;
+  employeeName?: string;
 }
 
 interface Slot {
@@ -19,7 +21,7 @@ interface Slot {
 
 const DAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
-export function TerminBuchung({ companyName, ownerName, phone, email, logoUrl }: Props) {
+export function TerminBuchung({ companyName, ownerName, phone, email, logoUrl, employeeNo, employeeName }: Props) {
   const [step, setStep] = useState(0); // 0=landing, 1=datum, 2=formular, 3=bestätigung
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
@@ -126,7 +128,7 @@ export function TerminBuchung({ companyName, ownerName, phone, email, logoUrl }:
           <div className="relative px-6 py-16 text-center text-white anim-fade-in">
             {logoUrl && <img src={logoUrl} alt="Logo" className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-white/20 p-2 object-contain" />}
             <h1 className="font-display text-3xl font-bold mb-2">{companyName}</h1>
-            <p className="text-blue-100 text-lg">Ihr IT-Service in der Region</p>
+            <p className="text-blue-100 text-lg">{employeeName ? `Ihr Ansprechpartner: ${employeeName}` : 'Ihr IT-Service in der Region'}</p>
           </div>
         </div>
 

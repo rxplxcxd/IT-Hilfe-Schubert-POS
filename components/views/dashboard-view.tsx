@@ -6,7 +6,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { TrendingUp, FileText, Users, ShoppingCart, AlertCircle, CheckCircle2, Euro, Bell, BarChart3, Download, Shield, Calendar, XCircle, Activity, Clock } from 'lucide-react';
+import { TrendingUp, FileText, Users, ShoppingCart, AlertCircle, CheckCircle2, Euro, Bell, BarChart3, Download, Shield, Calendar, XCircle, Activity, Clock, LifeBuoy, UserPlus, FileCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -43,6 +43,18 @@ const PERIODS = [
 
 const DONUT_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#16a34a', '#ea580c', '#db2777'];
 
+// Module-level cache: persists across view remounts within the SPA session so the
+// dashboard shows instantly (stale-while-revalidate) instead of blanking + refetching.
+type DashboardCache = {
+  data: DashboardData | null;
+  stats: StatsData | null;
+  reminders: any[];
+  appointments: any[];
+  activities: any[];
+  period: string;
+};
+let dashboardCache: DashboardCache | null = null;
+
 const container = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.07, delayChildren: 0.05 } },
@@ -56,28 +68,47 @@ export function DashboardView({ onNavigate, onViewInvoice }: {
   onNavigate: (tab: any) => void;
   onViewInvoice: (id: number) => void;
 }) {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [stats, setStats] = useState<StatsData | null>(null);
-  const [reminders, setReminders] = useState<any[]>([]);
-  const [appointments, setAppointments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<DashboardData | null>(dashboardCache?.data ?? null);
+  const [stats, setStats] = useState<StatsData | null>(dashboardCache?.stats ?? null);
+  const [reminders, setReminders] = useState<any[]>(dashboardCache?.reminders ?? []);
+  const [appointments, setAppointments] = useState<any[]>(dashboardCache?.appointments ?? []);
+  const [activities, setActivities] = useState<any[]>(dashboardCache?.activities ?? []);
+  // Only show the loading skeleton on the very first load (empty cache).
+  const [loading, setLoading] = useState(!dashboardCache);
   const [showStats, setShowStats] = useState(false);
   const [downloadingReport, setDownloadingReport] = useState(false);
-  const [period, setPeriod] = useState<string>('monthly');
+  const [period, setPeriod] = useState<string>(dashboardCache?.period ?? 'monthly');
 
   const fetchData = useCallback(async () => {
     try {
-      const [dRes, sRes, rRes, aRes] = await Promise.all([
+      const [dRes, sRes, rRes, aRes, actRes] = await Promise.all([
         fetch('/api/dashboard'),
         fetch(`/api/stats?months=6&period=${period}`),
         fetch('/api/reminders?pending=true'),
         fetch('/api/appointments'),
+        fetch('/api/activities'),
       ]);
-      setData(await dRes.json());
-      setStats(await sRes.json());
-      setReminders((await rRes.json() || []).slice(0, 5));
+      const nextData = await dRes.json();
+      const nextStats = await sRes.json();
+      const nextReminders = (await rRes.json() || []).slice(0, 5);
       const appts = await aRes.json();
-      setAppointments(Array.isArray(appts) ? appts : []);
+      const nextAppointments = Array.isArray(appts) ? appts : [];
+      const acts = await actRes.json();
+      const nextActivities = Array.isArray(acts) ? acts : [];
+      setData(nextData);
+      setStats(nextStats);
+      setReminders(nextReminders);
+      setAppointments(nextAppointments);
+      setActivities(nextActivities);
+      // Update the shared cache so the next remount renders instantly.
+      dashboardCache = {
+        data: nextData,
+        stats: nextStats,
+        reminders: nextReminders,
+        appointments: nextAppointments,
+        activities: nextActivities,
+        period,
+      };
     } catch (e: any) {
       console.error('Dashboard fetch error:', e);
     } finally {
@@ -85,6 +116,7 @@ export function DashboardView({ onNavigate, onViewInvoice }: {
     }
   }, [period]);
 
+  // Always revalidate in the background on mount; skeleton only shows when cache is empty.
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleDownloadReport = async () => {
@@ -284,17 +316,17 @@ export function DashboardView({ onNavigate, onViewInvoice }: {
                 <Activity className="w-4 h-4 text-primary" /> Aktivität
                 <span className="ml-1 w-2 h-2 rounded-full bg-green-500 ticker-dot inline-block" />
               </h3>
-              <Button variant="ghost" size="sm" className="text-xs press-scale" onClick={() => onNavigate('appointments')}>Alle Termine</Button>
             </div>
-            {upcoming.length === 0 ? (
+            {activities.length === 0 && upcoming.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground">
-                <Calendar className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                <p className="text-xs">Keine anstehenden Termine</p>
+                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p className="text-xs">Keine neuen Aktivitäten</p>
               </div>
             ) : (
               <div className="space-y-2">
+                {/* Show upcoming appointments first */}
                 {upcoming.map((a, i) => (
-                  <div key={a.id} className={`flex items-center gap-3 p-2 rounded-lg bg-muted/40 anim-slide-down`} style={{ animationDelay: `${i * 60}ms` }}>
+                  <button key={`appt-${a.id}`} onClick={() => onNavigate('appointments')} className={`w-full flex items-center gap-3 p-2 rounded-lg bg-muted/40 anim-slide-down text-left`} style={{ animationDelay: `${i * 60}ms` }}>
                     <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                       <Clock className="w-4 h-4" />
                     </div>
@@ -303,8 +335,43 @@ export function DashboardView({ onNavigate, onViewInvoice }: {
                       <p className="text-[10px] text-muted-foreground">{formatDate(a.date)} · {a.startTime}-{a.endTime} Uhr</p>
                     </div>
                     <span className={`text-[9px] px-2 py-0.5 rounded-full font-medium ${statusStyle[a.status] || 'bg-muted text-muted-foreground'}`}>{a.status}</span>
-                  </div>
+                  </button>
                 ))}
+                {/* Activities feed */}
+                {activities.slice(0, 10).map((act, i) => {
+                  const iconMap: Record<string, any> = { appointment: Calendar, registration: UserPlus, ticket: LifeBuoy, invoice: FileText };
+                  const colorMap: Record<string, string> = {
+                    appointment: 'bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400',
+                    registration: 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400',
+                    ticket: 'bg-purple-100 text-purple-600 dark:bg-purple-500/15 dark:text-purple-400',
+                    invoice: 'bg-green-100 text-green-600 dark:bg-green-500/15 dark:text-green-400',
+                  };
+                  const Icon = iconMap[act.type] || Activity;
+                  const color = colorMap[act.type] || 'bg-muted text-muted-foreground';
+                  const dest: Record<string, string> = { appointment: 'appointments', registration: 'settings', ticket: 'tickets', invoice: 'belege' };
+                  const targetTab = dest[act.type] || 'dashboard';
+                  const timeAgo = (() => {
+                    const diff = Date.now() - new Date(act.time).getTime();
+                    const mins = Math.floor(diff / 60000);
+                    if (mins < 1) return 'gerade eben';
+                    if (mins < 60) return `vor ${mins} Min.`;
+                    const hrs = Math.floor(mins / 60);
+                    if (hrs < 24) return `vor ${hrs} Std.`;
+                    return `vor ${Math.floor(hrs / 24)} Tag${Math.floor(hrs / 24) === 1 ? '' : 'en'}`;
+                  })();
+                  return (
+                    <button key={act.id} onClick={() => onNavigate(targetTab as any, act.type === 'registration' ? 'team' : undefined)} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/60 transition-colors text-left anim-slide-down" style={{ animationDelay: `${(upcoming.length + i) * 50}ms` }}>
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-xs font-medium truncate ${act.unread ? 'font-bold' : ''}`}>{act.title}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{act.subtitle}</p>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">{timeAgo}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </CardContent>

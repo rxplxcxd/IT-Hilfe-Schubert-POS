@@ -65,7 +65,7 @@ const item = {
 };
 
 export function DashboardView({ onNavigate, onViewInvoice }: {
-  onNavigate: (tab: any) => void;
+  onNavigate: (tab: any, section?: string) => void;
   onViewInvoice: (id: number) => void;
 }) {
   const [data, setData] = useState<DashboardData | null>(dashboardCache?.data ?? null);

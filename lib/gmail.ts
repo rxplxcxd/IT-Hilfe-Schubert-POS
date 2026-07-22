@@ -74,6 +74,10 @@ export async function getOAuthCreds(): Promise<OAuthCreds | null> {
     clientId = clientId || settings?.googleClientId || '';
     clientSecret = clientSecret || settings?.googleClientSecret || '';
   }
+  // iPhone-Copy-Paste haengt oft unsichtbare Leerzeichen/Zeilenumbrueche an,
+  // was Google mit invalid_client quittiert. Deshalb sauber trimmen.
+  clientId = (clientId || '').trim();
+  clientSecret = (clientSecret || '').trim();
   if (!clientId || !clientSecret) return null;
   const redirectUri = getGmailRedirectUri();
   return { clientId, clientSecret, redirectUri };

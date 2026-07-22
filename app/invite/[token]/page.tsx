@@ -59,23 +59,12 @@ export default function AcceptInvitePage() {
     setSaving(true);
 
     try {
-      // 1. Supabase-Account anlegen
-      const supabase = createClient();
-      const { error: signUpErr } = await supabase.auth.signUp({ email, password });
-      if (signUpErr) {
-        // "User already registered" -> trotzdem weiter, der AppUser ist ja schon da
-        if (!signUpErr.message?.includes('already registered')) {
-          setErrorMsg(signUpErr.message || 'Konto konnte nicht erstellt werden.');
-          setSaving(false);
-          return;
-        }
-      }
-
-      // 2. AppUser freischalten
+      // 1. Konto serverseitig anlegen & freischalten (sofort bestaetigt,
+      //    keine separate E-Mail-Bestaetigung noetig).
       const res = await fetch('/api/auth/accept-invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token, password }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -84,7 +73,8 @@ export default function AcceptInvitePage() {
         return;
       }
 
-      // 3. Einloggen
+      // 2. Einloggen
+      const supabase = createClient();
       const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
       if (loginErr) {
         // Einloggen fehlgeschlagen -> trotzdem Erfolg anzeigen, Login geht manuell

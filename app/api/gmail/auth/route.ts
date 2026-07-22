@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAccessForCurrentUser } from '@/lib/access';
-import { buildOAuthClient, getUserToken, companyAddress } from '@/lib/gmail';
+import { buildOAuthClient, getUserToken, companyAddress, getGmailRedirectUri } from '@/lib/gmail';
 
 export async function GET() {
   try {
@@ -18,6 +18,7 @@ export async function GET() {
     const domain = (settings as any)?.mailDomain || 'ithilfeschubert.xyz';
     const prefix = (me as any)?.emailPrefix || '';
     const compAddress = companyAddress(prefix, domain);
+    const redirectUri = getGmailRedirectUri();
 
     const oauth2Client = await buildOAuthClient();
     if (!oauth2Client) {
@@ -27,6 +28,7 @@ export async function GET() {
         error: 'Google API-Zugangsdaten nicht konfiguriert',
         companyAddress: compAddress,
         prefixSet: !!compAddress,
+        redirectUri,
       });
     }
 
@@ -48,6 +50,7 @@ export async function GET() {
           email: token.email,
           companyAddress: compAddress,
           prefixSet: !!compAddress,
+          redirectUri,
         });
       } catch {
         // Token ungueltig -> neue Anmeldung noetig
@@ -71,6 +74,7 @@ export async function GET() {
       authUrl,
       companyAddress: compAddress,
       prefixSet: !!compAddress,
+      redirectUri,
     });
   } catch (error: any) {
     console.error('Gmail auth error:', error);

@@ -126,10 +126,22 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // Exakte Redirect-URI fuer Google Cloud Console (zur Laufzeit aus dem Origin).
-  const redirectUri = mounted && typeof window !== 'undefined'
+  // Exakte Redirect-URI fuer Google Cloud Console. Bevorzugt den echten,
+  // serverseitig verwendeten Wert (aus /api/gmail/auth) - genau dieser wird
+  // an Google gesendet. Fallback: Client-Origin, bis der Server geantwortet hat.
+  const [serverRedirectUri, setServerRedirectUri] = useState<string>('');
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/gmail/auth', { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (!cancelled && d?.redirectUri) setServerRedirectUri(d.redirectUri); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const clientRedirectUri = mounted && typeof window !== 'undefined'
     ? window.location.origin + '/api/gmail/callback'
     : '';
+  const redirectUri = serverRedirectUri || clientRedirectUri;
 
   if (loading) {
     return <div className="flex justify-center py-8"><div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" /></div>;
@@ -309,7 +321,7 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
                   <code className="flex-1 text-[11px] break-all bg-background border border-border rounded px-2 py-1 font-mono">{redirectUri}</code>
                   <Button type="button" size="sm" variant="outline" className="shrink-0 text-xs" onClick={() => { navigator.clipboard?.writeText(redirectUri); toast.success('URL kopiert'); }}>Kopieren</Button>
                 </div>
-                <p className="text-[11px] text-amber-700 dark:text-amber-400">Muss zeichengenau übereinstimmen, sonst lehnt Google mit "invalid_request" ab.</p>
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">Muss zeichengenau übereinstimmen, sonst lehnt Google mit "redirect_uri_mismatch" ab. Dies ist die tatsächlich vom Server gesendete Adresse.</p>
               </div>
             )}
             <div>

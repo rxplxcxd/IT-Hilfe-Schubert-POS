@@ -47,6 +47,24 @@ export interface OAuthCreds {
   redirectUri: string;
 }
 
+/**
+ * Die exakte redirect_uri, die an Google gesendet und dort registriert werden
+ * muss. Reihenfolge (deterministisch zuerst):
+ *   1. GMAIL_REDIRECT_URI  (vollstaendige URL als harter Override)
+ *   2. NEXT_PUBLIC_APP_URL / NEXTAUTH_URL  (+ /api/gmail/callback)
+ *   3. Request-Origin aus den Headern  (+ /api/gmail/callback)
+ * So kann der Wert per ENV fest verdrahtet werden und stimmt immer
+ * zeichengenau mit der Google-Registrierung ueberein.
+ */
+export function getGmailRedirectUri(): string {
+  const override = (process.env.GMAIL_REDIRECT_URI || '').trim().replace(/\/$/, '');
+  if (override) return override;
+  const env = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || '').trim().replace(/\/$/, '');
+  if (env) return env + '/api/gmail/callback';
+  const base = getAppOrigin().replace(/\/$/, '');
+  return base + '/api/gmail/callback';
+}
+
 /** Laedt Client-ID/Secret aus ENV, faellt auf die Settings-Tabelle zurueck. */
 export async function getOAuthCreds(): Promise<OAuthCreds | null> {
   let clientId = process.env.GOOGLE_GMAIL_CLIENT_ID;
@@ -57,8 +75,7 @@ export async function getOAuthCreds(): Promise<OAuthCreds | null> {
     clientSecret = clientSecret || settings?.googleClientSecret || '';
   }
   if (!clientId || !clientSecret) return null;
-  const base = getAppOrigin();
-  const redirectUri = base + '/api/gmail/callback';
+  const redirectUri = getGmailRedirectUri();
   return { clientId, clientSecret, redirectUri };
 }
 

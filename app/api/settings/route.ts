@@ -60,6 +60,7 @@ export async function GET() {
       bic: settings?.bic ?? '',
       googleClientId: settings?.googleClientId ?? '',
       googleClientSecret: settings?.googleClientSecret ? '••••••••' : '',
+      mailDomain: (settings as any)?.mailDomain ?? 'ithilfeschubert.xyz',
       disclaimerDefaultText: (settings as any)?.disclaimerDefaultText ?? '',
       hqStreet: (settings as any)?.hqStreet ?? 'Alte Schulstr 4',
       hqZip: (settings as any)?.hqZip ?? '02694',
@@ -119,6 +120,7 @@ export async function PUT(request: Request) {
         ...(data?.hqStreet !== undefined ? { hqStreet: data.hqStreet } : {}),
         ...(data?.hqZip !== undefined ? { hqZip: data.hqZip } : {}),
         ...(data?.hqCity !== undefined ? { hqCity: data.hqCity } : {}),
+        ...(data?.mailDomain !== undefined ? { mailDomain: data.mailDomain } : {}),
       },
       create: {
         id: 1,
@@ -142,6 +144,7 @@ export async function PUT(request: Request) {
         hqStreet: data?.hqStreet ?? 'Alte Schulstr 4',
         hqZip: data?.hqZip ?? '02694',
         hqCity: data?.hqCity ?? 'Malschwitz',
+        mailDomain: data?.mailDomain ?? 'ithilfeschubert.xyz',
       },
     });
 

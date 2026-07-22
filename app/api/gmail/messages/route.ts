@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { prisma } from '@/lib/prisma';
+import { getAccessForCurrentUser } from '@/lib/access';
+import { getAuthedClientForUser, companyAddress, companyInboxQuery } from '@/lib/gmail';
 
 function decodeBase64(data: string) {
   try {
@@ -23,12 +25,10 @@ function extractBodyText(payload: any): string {
     return decodeBase64(payload.body.data);
   }
   if (payload.parts) {
-    // Prefer text/plain first, then text/html
     const textPart = payload.parts.find((p: any) => p.mimeType === 'text/plain');
     if (textPart?.body?.data) return decodeBase64(textPart.body.data);
     const htmlPart = payload.parts.find((p: any) => p.mimeType === 'text/html');
     if (htmlPart?.body?.data) return decodeBase64(htmlPart.body.data);
-    // Recursively check nested parts
     for (const part of payload.parts) {
       const nested = extractBodyText(part);
       if (nested) return nested;
@@ -37,39 +37,30 @@ function extractBodyText(payload: any): string {
   return '';
 }
 
-async function getAuthClient() {
-  const token = await prisma.gmailToken.findUnique({ where: { id: 1 } });
-  if (!token?.refreshToken) return null;
-
-  let clientId = process.env.GOOGLE_GMAIL_CLIENT_ID;
-  let clientSecret = process.env.GOOGLE_GMAIL_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-    clientId = settings?.googleClientId || '';
-    clientSecret = settings?.googleClientSecret || '';
-  }
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/gmail/callback`;
-  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-  oauth2Client.setCredentials({
-    refresh_token: token.refreshToken,
-    access_token: token.accessToken,
-  });
-  return oauth2Client;
-}
-
 export async function GET(request: Request) {
   try {
-    const auth = await getAuthClient();
+    const access = await getAccessForCurrentUser();
+    if (!access || access.status !== 'APPROVED') {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
+
+    const auth = await getAuthedClientForUser(access.id);
     if (!auth) return NextResponse.json({ error: 'Nicht verbunden' }, { status: 401 });
+
+    // Firmen-Adresse dieses Mitarbeiters als Filter.
+    const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+    const me = await prisma.appUser.findUnique({ where: { id: access.id } });
+    const domain = (settings as any)?.mailDomain || 'ithilfeschubert.xyz';
+    const compAddress = companyAddress((me as any)?.emailPrefix || '', domain);
 
     const url = new URL(request.url);
     const messageId = url.searchParams.get('id');
     const pageToken = url.searchParams.get('pageToken') || undefined;
-    const query = url.searchParams.get('q') || '';
+    const userSearch = url.searchParams.get('q') || '';
 
     const gmail = google.gmail({ version: 'v1', auth });
 
-    // Get single message detail
+    // Einzelne Nachricht (Detail) - kein Filter noetig.
     if (messageId) {
       const msg = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' });
       const headers = msg.data.payload?.headers || [];
@@ -88,12 +79,14 @@ export async function GET(request: Request) {
       });
     }
 
-    // List messages
+    // Nur die Firmen-Mails dieses Mitarbeiters auflisten.
+    const query = companyInboxQuery(compAddress, userSearch);
+
     const list = await gmail.users.messages.list({
       userId: 'me',
       maxResults: 20,
       pageToken,
-      q: query || undefined,
+      q: query,
     });
 
     const messages = [];
@@ -112,13 +105,15 @@ export async function GET(request: Request) {
           isUnread: (msg.data.labelIds || []).includes('UNREAD'),
         });
       } catch {
-        // Skip broken messages
+        // defekte Nachricht ueberspringen
       }
     }
 
     return NextResponse.json({
       messages,
       nextPageToken: list.data.nextPageToken || null,
+      companyAddress: compAddress,
+      prefixSet: !!compAddress,
     });
   } catch (error: any) {
     console.error('Gmail messages error:', error);

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, X, Clock, Shield, User as UserIcon, Trash2, RefreshCw, Mail, ArrowLeft, ChevronRight, Phone, MapPin, Users, FileText, ShoppingCart, Euro, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Check, X, Clock, Shield, User as UserIcon, Trash2, RefreshCw, Mail, ArrowLeft, ChevronRight, Phone, MapPin, Users, FileText, ShoppingCart, Euro, Loader2, AtSign, Save } from 'lucide-react';
 import { notifySuccess, notifyError } from '@/lib/toast';
 import { useNotifications } from '@/components/notification-provider';
 import { employeeCode, formatCurrency } from '@/lib/utils';
@@ -15,6 +16,7 @@ interface AppUserRow {
   role: string;
   status: string;
   employeeNo?: number | null;
+  emailPrefix?: string;
   contactStreet?: string;
   contactZip?: string;
   contactCity?: string;
@@ -45,6 +47,16 @@ export function TeamSettings() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<MemberDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [mailDomain, setMailDomain] = useState('ithilfeschubert.xyz');
+  const [prefixInput, setPrefixInput] = useState('');
+  const [savingPrefix, setSavingPrefix] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.mailDomain) setMailDomain(d.mailDomain); })
+      .catch(() => {});
+  }, []);
 
   const openDetail = useCallback(async (id: number) => {
     setDetailId(id);
@@ -55,6 +67,7 @@ export function TeamSettings() {
       if (!res.ok) { notifyError('Details konnten nicht geladen werden'); setDetailId(null); return; }
       const data = await res.json();
       setDetail(data);
+      setPrefixInput((data?.user?.emailPrefix || '').trim());
     } catch {
       notifyError('Fehler beim Laden');
       setDetailId(null);
@@ -102,6 +115,28 @@ export function TeamSettings() {
       notifyError('Aktion fehlgeschlagen', 'Die Änderung konnte nicht gespeichert werden.');
     } finally {
       setBusy(null);
+    }
+  };
+
+  const savePrefix = async () => {
+    if (detailId == null) return;
+    setSavingPrefix(true);
+    try {
+      const clean = prefixInput.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+      const res = await fetch(`/api/users/${detailId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'prefix', emailPrefix: clean }),
+      });
+      if (!res.ok) throw new Error();
+      setPrefixInput(clean);
+      setDetail((prev) => (prev ? { ...prev, user: { ...prev.user, emailPrefix: clean } } : prev));
+      notifySuccess('Firmen-Adresse gespeichert', clean ? `${clean}@${mailDomain}` : 'Zuordnung entfernt.');
+      await load();
+    } catch {
+      notifyError('Speichern fehlgeschlagen', 'Die Firmen-Adresse konnte nicht gespeichert werden.');
+    } finally {
+      setSavingPrefix(false);
     }
   };
 
@@ -167,6 +202,41 @@ export function TeamSettings() {
                   {u.contactPhone && <p className="flex items-center gap-1.5 pt-2"><Phone className="w-3 h-3" />{u.contactPhone}</p>}
                   {(u.contactStreet || u.contactCity) && <p className="flex items-center gap-1.5"><MapPin className="w-3 h-3" />{[u.contactStreet, [u.contactZip, u.contactCity].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</p>}
                 </div>
+              )}
+            </CardContent></Card>
+
+            {/* Firmen-E-Mail-Adresse zuweisen */}
+            <Card className="shadow-sm"><CardContent className="p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <AtSign className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">Firmen-E-Mail-Adresse</h3>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Lege den vorderen Teil der Firmen-Adresse fest. Eingehende Mails an diese Adresse werden per Weiterleitung an das private Gmail dieses Mitarbeiters zugestellt und in der App nur ihm angezeigt.
+              </p>
+              <div className="flex items-stretch gap-2">
+                <div className="flex items-center flex-1 rounded-md border border-input bg-background overflow-hidden">
+                  <Input
+                    value={prefixInput}
+                    onChange={(e: any) => setPrefixInput(e.target.value)}
+                    placeholder="z.B. max"
+                    className="border-0 focus-visible:ring-0 flex-1 min-w-0"
+                    inputMode="text"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <span className="px-2 text-xs text-muted-foreground shrink-0 whitespace-nowrap">@{mailDomain}</span>
+                </div>
+                <Button onClick={savePrefix} disabled={savingPrefix} className="gap-1.5 shrink-0">
+                  {savingPrefix ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Speichern
+                </Button>
+              </div>
+              {(u.emailPrefix || '').trim() ? (
+                <p className="text-xs text-muted-foreground">Aktuelle Adresse: <span className="font-semibold text-primary">{u.emailPrefix}@{mailDomain}</span></p>
+              ) : (
+                <p className="text-xs text-amber-600 dark:text-amber-400">Noch keine Adresse zugewiesen.</p>
               )}
             </CardContent></Card>
 

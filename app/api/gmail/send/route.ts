@@ -3,35 +3,47 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { prisma } from '@/lib/prisma';
+import { getAccessForCurrentUser } from '@/lib/access';
+import { getAuthedClientForUser, getUserToken, companyAddress } from '@/lib/gmail';
+
+function encodeHeader(value: string) {
+  // RFC 2047 Encoding fuer Nicht-ASCII-Zeichen im Header (z.B. Umlaute).
+  if (/^[\x00-\x7F]*$/.test(value)) return value;
+  return '=?UTF-8?B?' + Buffer.from(value, 'utf-8').toString('base64') + '?=';
+}
 
 export async function POST(request: Request) {
   try {
-    const token = await prisma.gmailToken.findUnique({ where: { id: 1 } });
-    if (!token?.refreshToken) {
+    const access = await getAccessForCurrentUser();
+    if (!access || access.status !== 'APPROVED') {
+      return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
+    }
+
+    const oauth2Client = await getAuthedClientForUser(access.id);
+    if (!oauth2Client) {
       return NextResponse.json({ error: 'Nicht verbunden' }, { status: 401 });
     }
 
-    let clientId = process.env.GOOGLE_GMAIL_CLIENT_ID;
-    let clientSecret = process.env.GOOGLE_GMAIL_CLIENT_SECRET;
-    if (!clientId || !clientSecret) {
-      const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-      clientId = settings?.googleClientId || '';
-      clientSecret = settings?.googleClientSecret || '';
-    }
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/gmail/callback`;
-    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-    oauth2Client.setCredentials({
-      refresh_token: token.refreshToken,
-      access_token: token.accessToken,
-    });
+    const token = await getUserToken(access.id);
+
+    // Absender = Firmen-Adresse (setzt den in Gmail eingerichteten "Senden als"
+    // Alias voraus). Ohne Prefix wird das verbundene Gmail-Konto genutzt.
+    const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+    const me = await prisma.appUser.findUnique({ where: { id: access.id } });
+    const domain = (settings as any)?.mailDomain || 'ithilfeschubert.xyz';
+    const compAddress = companyAddress((me as any)?.emailPrefix || '', domain);
+    const companyName = settings?.companyName || 'IT-Hilfe Schubert';
+    const fromAddress = compAddress || token?.email || '';
+    const fromHeader = compAddress
+      ? `${encodeHeader(companyName)} <${fromAddress}>`
+      : fromAddress;
 
     const { to, subject, body, inReplyTo, threadId } = await request.json();
 
-    // Build RFC 2822 message
     const headers = [
       `To: ${to}`,
-      `From: ${token.email}`,
-      `Subject: ${subject}`,
+      `From: ${fromHeader}`,
+      `Subject: ${encodeHeader(subject || '')}`,
       'MIME-Version: 1.0',
       'Content-Type: text/html; charset=utf-8',
     ];
@@ -40,7 +52,7 @@ export async function POST(request: Request) {
       headers.push(`References: ${inReplyTo}`);
     }
 
-    const raw = Buffer.from(headers.join('\r\n') + '\r\n\r\n' + body)
+    const raw = Buffer.from(headers.join('\r\n') + '\r\n\r\n' + (body || ''))
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')

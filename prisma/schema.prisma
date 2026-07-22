@@ -283,7 +283,10 @@ model OrderPhoto {
 }
 
 model GmailToken {
-  id           Int      @id @default(1)
+  id           Int      @id @default(autoincrement())
+  // Pro Mitarbeiter ein eigenes Gmail-Token. Der Alt-Datensatz (id=1) bleibt
+  // ohne userId erhalten und wird nicht mehr verwendet.
+  userId       Int?     @unique
   accessToken  String   @default("")
   refreshToken String   @default("")
   expiresAt    DateTime?
@@ -310,6 +313,8 @@ model Settings {
   bic            String @default("")
   googleClientId     String @default("")
   googleClientSecret String @default("")
+  // Domain fuer die Firmen-E-Mail-Adressen der Mitarbeiter.
+  mailDomain         String @default("ithilfeschubert.xyz")
   // Default disclaimer text for orders
   disclaimerDefaultText String @default("Der Kunde bestätigt, dass ein aktuelles Backup aller relevanten Daten existiert. Für etwaige Datenverluste während der Reparatur/Wartung wird keine Haftung übernommen. Der Kunde trägt das volle Risiko für nicht gesicherte Daten.")
   // Company HQ address for distance calculation
@@ -378,6 +383,9 @@ model AppUser {
   contactZip    String @default("")
   contactCity   String @default("")
   contactPhone  String @default("")
+  // Lokaler Teil der Firmen-E-Mail-Adresse dieses Mitarbeiters, z.B. "leon"
+  // -> ergibt zusammen mit Settings.mailDomain "leon@ithilfeschubert.xyz".
+  emailPrefix   String @default("")
   approvedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt @default(now())

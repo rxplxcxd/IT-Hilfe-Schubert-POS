@@ -44,6 +44,8 @@ export function EmailView() {
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [configError, setConfigError] = useState('');
+  const [companyAddress, setCompanyAddress] = useState<string | null>(null);
+  const [prefixSet, setPrefixSet] = useState(true);
 
   const checkConnection = useCallback(async () => {
     try {
@@ -52,6 +54,8 @@ export function EmailView() {
       setConnected(data.connected || false);
       setAuthUrl(data.authUrl || null);
       setConnectedEmail(data.email || '');
+      setCompanyAddress(data.companyAddress || null);
+      setPrefixSet(!!data.prefixSet);
       if (data.error && !data.authUrl) setConfigError(data.error);
       else setConfigError('');
     } catch {
@@ -189,8 +193,19 @@ export function EmailView() {
               </div>
             ) : null}
             <p className="text-sm text-muted-foreground">
-              Verbinde dein Google-Konto, um E-Mails direkt aus der App zu lesen und zu senden.
+              Verbinde dein eigenes Google-Konto, um deine Firmen-Mails direkt aus der App zu lesen und zu senden.
             </p>
+            {companyAddress ? (
+              <div className="text-xs bg-primary/5 border border-primary/20 rounded-lg p-2.5 text-left">
+                <p className="text-muted-foreground">Deine Firmen-Adresse:</p>
+                <p className="font-semibold text-primary break-all">{companyAddress}</p>
+              </div>
+            ) : !configError ? (
+              <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 rounded-lg p-2.5 text-left flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>Deine Firmen-E-Mail-Adresse ist noch nicht hinterlegt. Bitte wende dich an den Administrator, damit er dir eine Adresse zuweist.</span>
+              </div>
+            ) : null}
             {authUrl ? (
               <Button onClick={() => window.open(authUrl, '_self')} className="gap-2">
                 <ExternalLink className="w-4 h-4" />
@@ -222,11 +237,11 @@ export function EmailView() {
           <CardContent className="p-4 space-y-3">
             <div>
               <Label>An</Label>
-              <Input value={compose.to} onChange={(e: any) => setCompose({ ...compose, to: e.target.value })} placeholder="email@example.com" type="email" />
+              <Input value={compose.to} onChange={(e: any) => setCompose({ ...compose, to: e.target.value })} placeholder="email@example.com" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
             </div>
             <div>
               <Label>Betreff</Label>
-              <Input value={compose.subject} onChange={(e: any) => setCompose({ ...compose, subject: e.target.value })} placeholder="Betreff eingeben..." />
+              <Input value={compose.subject} onChange={(e: any) => setCompose({ ...compose, subject: e.target.value })} placeholder="Betreff eingeben..." inputMode="text" autoCapitalize="sentences" autoCorrect="on" spellCheck />
             </div>
             <div>
               <Label>Nachricht</Label>
@@ -235,6 +250,10 @@ export function EmailView() {
                 onChange={(e: any) => setCompose({ ...compose, body: e.target.value })}
                 className="w-full mt-1 p-3 text-sm border border-input rounded-md bg-background min-h-[200px] resize-y"
                 placeholder="Nachricht verfassen..."
+                inputMode="text"
+                autoCapitalize="sentences"
+                autoCorrect="on"
+                spellCheck
               />
             </div>
             <Button onClick={handleSend} disabled={sending} className="w-full gap-2">
@@ -305,12 +324,24 @@ export function EmailView() {
 
       {/* Connected account */}
       <div className="flex items-center justify-between text-xs bg-muted/50 p-2 rounded-lg">
-        <span className="text-muted-foreground truncate">{connectedEmail}</span>
+        <div className="min-w-0">
+          {companyAddress && (
+            <p className="font-semibold text-primary truncate">{companyAddress}</p>
+          )}
+          <span className="text-muted-foreground truncate block">Verbunden: {connectedEmail}</span>
+        </div>
         <button onClick={handleDisconnect} className="text-destructive flex items-center gap-1 shrink-0">
           <Unplug className="w-3 h-3" />
           Trennen
         </button>
       </div>
+
+      {!prefixSet && (
+        <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 rounded-lg p-2.5 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>Es ist noch keine Firmen-Adresse hinterlegt. Es werden daher alle E-Mails deines Kontos angezeigt. Bitte lasse dir vom Administrator eine Adresse zuweisen.</span>
+        </div>
+      )}
 
       {/* Search */}
       <div className="flex gap-2">
@@ -320,6 +351,10 @@ export function EmailView() {
           placeholder="E-Mails durchsuchen..."
           onKeyDown={(e: any) => e.key === 'Enter' && handleSearch()}
           className="flex-1"
+          inputMode="text"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
         />
         <Button variant="outline" size="icon" onClick={handleSearch}>
           <Search className="w-4 h-4" />

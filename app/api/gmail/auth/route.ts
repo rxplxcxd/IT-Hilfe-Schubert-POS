@@ -1,51 +1,63 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
 import { prisma } from '@/lib/prisma';
-
-async function getOAuth2Client() {
-  let clientId = process.env.GOOGLE_GMAIL_CLIENT_ID;
-  let clientSecret = process.env.GOOGLE_GMAIL_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-    clientId = settings?.googleClientId || '';
-    clientSecret = settings?.googleClientSecret || '';
-  }
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/gmail/callback`;
-  if (!clientId || !clientSecret) return null;
-  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-}
+import { getAccessForCurrentUser } from '@/lib/access';
+import { buildOAuthClient, getUserToken, companyAddress } from '@/lib/gmail';
 
 export async function GET() {
   try {
-    const oauth2Client = await getOAuth2Client();
-    if (!oauth2Client) {
-      return NextResponse.json({ connected: false, authUrl: null, error: 'Google API-Zugangsdaten nicht konfiguriert' });
+    const access = await getAccessForCurrentUser();
+    if (!access || access.status !== 'APPROVED') {
+      return NextResponse.json({ connected: false, authUrl: null, error: 'Kein Zugriff' }, { status: 200 });
     }
 
-    // Check if we have a valid token
-    const token = await prisma.gmailToken.findUnique({ where: { id: 1 } });
+    // Firmen-Adresse dieses Mitarbeiters bestimmen.
+    const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+    const me = await prisma.appUser.findUnique({ where: { id: access.id } });
+    const domain = (settings as any)?.mailDomain || 'ithilfeschubert.xyz';
+    const prefix = (me as any)?.emailPrefix || '';
+    const compAddress = companyAddress(prefix, domain);
+
+    const oauth2Client = await buildOAuthClient();
+    if (!oauth2Client) {
+      return NextResponse.json({
+        connected: false,
+        authUrl: null,
+        error: 'Google API-Zugangsdaten nicht konfiguriert',
+        companyAddress: compAddress,
+        prefixSet: !!compAddress,
+      });
+    }
+
+    // Vorhandenes Token dieses Mitarbeiters pruefen.
+    const token = await getUserToken(access.id);
     if (token && token.refreshToken) {
       oauth2Client.setCredentials({ refresh_token: token.refreshToken });
       try {
         const { credentials } = await oauth2Client.refreshAccessToken();
         await prisma.gmailToken.update({
-          where: { id: 1 },
+          where: { userId: access.id },
           data: {
             accessToken: credentials.access_token || '',
             expiresAt: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
           },
         });
-        return NextResponse.json({ connected: true, email: token.email });
+        return NextResponse.json({
+          connected: true,
+          email: token.email,
+          companyAddress: compAddress,
+          prefixSet: !!compAddress,
+        });
       } catch {
-        // Token invalid, need re-auth
+        // Token ungueltig -> neue Anmeldung noetig
       }
     }
 
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
+      state: String(access.id),
       scope: [
         'https://www.googleapis.com/auth/gmail.readonly',
         'https://www.googleapis.com/auth/gmail.send',
@@ -54,7 +66,12 @@ export async function GET() {
       ],
     });
 
-    return NextResponse.json({ connected: false, authUrl });
+    return NextResponse.json({
+      connected: false,
+      authUrl,
+      companyAddress: compAddress,
+      prefixSet: !!compAddress,
+    });
   } catch (error: any) {
     console.error('Gmail auth error:', error);
     return NextResponse.json({ connected: false, error: error.message }, { status: 500 });

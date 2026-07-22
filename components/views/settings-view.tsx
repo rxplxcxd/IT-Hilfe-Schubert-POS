@@ -28,6 +28,7 @@ interface SettingsData {
   bic: string;
   googleClientId: string;
   googleClientSecret: string;
+  mailDomain: string;
   disclaimerDefaultText: string;
   hqStreet: string;
   hqZip: string;
@@ -41,7 +42,7 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
     taxInfo: 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
     invoiceHeader: '', logoUrl: '', resendApiKey: '',
     bankName: '', iban: '', bic: '',
-    googleClientId: '', googleClientSecret: '',
+    googleClientId: '', googleClientSecret: '', mailDomain: 'ithilfeschubert.xyz',
     disclaimerDefaultText: 'Der Kunde bestätigt, dass ein aktuelles Backup aller relevanten Daten existiert. Für etwaige Datenverluste während der Reparatur/Wartung wird keine Haftung übernommen. Der Kunde trägt das volle Risiko für nicht gesicherte Daten.',
     hqStreet: 'Alte Schulstr 4', hqZip: '02694', hqCity: 'Malschwitz',
   });
@@ -311,7 +312,21 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
                 className="font-mono text-xs"
               />
             </div>
-            <p className="text-xs text-muted-foreground">Nach dem Speichern gehe zum E-Mail-Tab, um dein Google-Konto zu verbinden.</p>
+            <div>
+              <Label>E-Mail-Domain</Label>
+              <Input
+                value={settings?.mailDomain ?? ''}
+                onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), mailDomain: e?.target?.value ?? ''})}
+                placeholder="ithilfeschubert.xyz"
+                className="font-mono text-xs"
+                inputMode="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Domain für die Firmen-Adressen der Mitarbeiter (z.B. max@ithilfeschubert.xyz). Die Zuweisung des vorderen Teils erfolgt im Team-Tab pro Mitarbeiter.</p>
+            </div>
+            <p className="text-xs text-muted-foreground">Jeder Mitarbeiter verbindet danach im E-Mail-Tab sein eigenes Google-Konto und sieht dort nur seine Firmen-Mails.</p>
           </CardContent>
         </Card>
       )}

@@ -97,6 +97,18 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       return NextResponse.json(updated);
     }
 
+    if (action === 'prefix') {
+      // Firmen-E-Mail-Prefix des Mitarbeiters setzen (nur Kleinbuchstaben,
+      // Ziffern, Punkt, Minus). Leerer Wert entfernt die Zuordnung.
+      const raw = String(body?.emailPrefix ?? '').trim().toLowerCase();
+      const clean = raw.replace(/[^a-z0-9._-]/g, '');
+      const updated = await prisma.appUser.update({
+        where: { id },
+        data: { emailPrefix: clean } as any,
+      });
+      return NextResponse.json(updated);
+    }
+
     return NextResponse.json({ error: 'Unbekannte Aktion' }, { status: 400 });
   } catch (error: any) {
     console.error('users PATCH:', error?.message);

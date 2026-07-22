@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, ArrowLeft, Send, Paperclip, X, LifeBuoy, Image as ImageIcon,
   Video as VideoIcon, Loader2, ShieldCheck, User as UserIcon, Search, Filter,
+  Clock, CalendarClock, Trash2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,7 @@ interface Ticket {
   createdByNo: number | null;
   adminUnread: boolean;
   employeeUnread: boolean;
+  dueDate?: string | null;
   createdAt: string;
   updatedAt: string;
   attachments?: Attachment[];
@@ -78,6 +80,48 @@ const CATEGORY_META: Record<string, { label: string; cls: string }> = {
 const CATEGORY_ORDER = ['HARDWARE', 'SOFTWARE', 'NETZWERK', 'ABRECHNUNG', 'KUNDE', 'TERMIN', 'ZUGANG', 'APP', 'MATERIAL', 'SONSTIGES'];
 
 const selectCls = 'h-9 rounded-lg border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+// ---- Frist-Logik: Countdown + rote Markierung bei Ueberschreitung ----
+interface DeadlineInfo {
+  label: string;
+  short: string;
+  isOverdue: boolean;
+  cls: string; // Badge-Klassen
+}
+function getDeadlineInfo(dueDate?: string | null, status?: string): DeadlineInfo | null {
+  if (!dueDate) return null;
+  const due = new Date(dueDate).getTime();
+  if (isNaN(due)) return null;
+  const done = status === 'ERLEDIGT';
+  const diff = due - Date.now();
+  const abs = Math.abs(diff);
+  const mins = Math.round(abs / 60000);
+  const hours = Math.round(abs / 3600000);
+  const days = Math.round(abs / 86400000);
+  const human = mins < 60 ? `${Math.max(mins, 1)} Min` : hours < 24 ? `${hours} Std` : `${days} Tag${days === 1 ? '' : 'e'}`;
+
+  if (done) {
+    return { label: 'Frist erledigt', short: 'Erledigt', isOverdue: false,
+      cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' };
+  }
+  if (diff < 0) {
+    return { label: `Überfällig seit ${human}`, short: `Überfällig · ${human}`, isOverdue: true,
+      cls: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' };
+  }
+  // Dringlich: weniger als 24 Std
+  if (diff < 86400000) {
+    return { label: `Fällig in ${human}`, short: `Noch ${human}`, isOverdue: false,
+      cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' };
+  }
+  return { label: `Fällig in ${human}`, short: `Noch ${human}`, isOverdue: false,
+    cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' };
+}
+
+// Wandelt ein Date in den Wert fuer <input type="datetime-local"> (lokale Zeit) um.
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 // Anhaenge sicher aus dem JSON-Feld einer Nachricht lesen.
 function parseMsgAttachments(raw?: string): Attachment[] {
@@ -239,8 +283,10 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
               const pr = PRIO_META[t.priority] || PRIO_META.NORMAL;
               const cat = CATEGORY_META[t.category] || CATEGORY_META.SONSTIGES;
               const unread = isAdmin ? t.adminUnread : t.employeeUnread;
+              const dl = getDeadlineInfo(t.dueDate, t.status);
               return (
-                <Card key={t.id} className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => openDetail(t.id)}>
+                <Card key={t.id} onClick={() => openDetail(t.id)}
+                  className={`cursor-pointer transition-shadow hover:shadow-md ${dl?.isOverdue ? 'border-red-300 dark:border-red-500/40 ring-1 ring-red-200 dark:ring-red-500/20 bg-red-50/40 dark:bg-red-500/5' : ''}`}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -250,6 +296,11 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${pr.cls}`}>{pr.label}</span>
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cat.cls}`}>{cat.label}</span>
+                          {dl && (
+                            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${dl.cls}`}>
+                              <Clock className="h-3 w-3" />{dl.short}
+                            </span>
+                          )}
                         </div>
                         <p className="font-semibold mt-1.5 truncate">{t.subject}</p>
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
@@ -318,6 +369,7 @@ function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: (
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('NORMAL');
   const [category, setCategory] = useState('SONSTIGES');
+  const [newDue, setNewDue] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -345,7 +397,7 @@ function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: (
     try {
       const res = await fetch('/api/tickets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: subject.trim(), description: description.trim(), priority, category, attachments }),
+        body: JSON.stringify({ subject: subject.trim(), description: description.trim(), priority, category, attachments, dueDate: newDue ? new Date(newDue).toISOString() : null }),
       });
       if (!res.ok) { toast.error('Ticket konnte nicht erstellt werden'); return; }
       toast.success('Ticket erstellt');
@@ -383,6 +435,12 @@ function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: (
               <option value="HOCH">Hoch</option>
             </select>
           </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="flex items-center gap-1.5"><CalendarClock className="h-4 w-4 text-muted-foreground" /> Frist (optional)</Label>
+          <Input type="datetime-local" value={newDue} min={toLocalInputValue(new Date())} onChange={(e) => setNewDue(e.target.value)}
+            className="h-10" />
+          <p className="text-xs text-muted-foreground">Kann jederzeit überschritten werden. Bei Überschreitung wird das Ticket rot markiert und es gehen Erinnerungen raus.</p>
         </div>
         <div className="space-y-1.5">
           <Label>Beschreibung</Label>
@@ -435,6 +493,8 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [dueSaving, setDueSaving] = useState(false);
+  const [dueEditing, setDueEditing] = useState(false);
   const [replyAttachments, setReplyAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -491,6 +551,26 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
     finally { setStatusSaving(false); }
   };
 
+  const saveDeadline = async (value: string | null) => {
+    if (!ticket) return;
+    setDueSaving(true);
+    try {
+      // datetime-local -> ISO. Leerer Wert loescht die Frist.
+      const iso = value ? new Date(value).toISOString() : null;
+      const res = await fetch(`/api/tickets/${ticket.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dueDate: iso }),
+      });
+      if (!res.ok) { toast.error('Frist konnte nicht gespeichert werden'); return; }
+      const updated = await res.json();
+      onChanged({ ...ticket, dueDate: updated.dueDate ?? null });
+      setDueEditing(false);
+      toast.success(iso ? 'Frist gesetzt' : 'Frist entfernt');
+      afterMutate();
+    } catch (e) { console.error(e); toast.error('Fehler'); }
+    finally { setDueSaving(false); }
+  };
+
   if (loading || !ticket) {
     return (
       <div className="space-y-4">
@@ -503,6 +583,7 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
   const st = STATUS_META[ticket.status] || STATUS_META.OFFEN;
   const pr = PRIO_META[ticket.priority] || PRIO_META.NORMAL;
   const cat = CATEGORY_META[ticket.category] || CATEGORY_META.SONSTIGES;
+  const dl = getDeadlineInfo(ticket.dueDate, ticket.status);
 
   return (
     <div className="space-y-4">
@@ -516,6 +597,11 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${pr.cls}`}>{pr.label}</span>
           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cat.cls}`}>{cat.label}</span>
+          {dl && (
+            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${dl.cls}`}>
+              <Clock className="h-3 w-3" />{dl.label}
+            </span>
+          )}
         </div>
         <h2 className="text-xl font-bold">{ticket.subject}</h2>
         <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
@@ -540,6 +626,56 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
             {statusSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
         )}
+
+        {/* Frist / Deadline (Admin + Ersteller) */}
+        <div className="pt-2 border-t space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
+              <CalendarClock className="h-3.5 w-3.5" /> Frist
+            </span>
+            {!dueEditing && (
+              <div className="flex items-center gap-2">
+                {ticket.dueDate ? (
+                  <span className="text-xs font-medium">{formatDateTime(ticket.dueDate)}</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Keine Frist gesetzt</span>
+                )}
+                <Button variant="outline" size="sm" className="h-8" disabled={dueSaving}
+                  onClick={() => setDueEditing(true)}>
+                  {ticket.dueDate ? 'Ändern' : 'Setzen'}
+                </Button>
+                {ticket.dueDate && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-600"
+                    disabled={dueSaving} onClick={() => saveDeadline(null)} aria-label="Frist entfernen">
+                    {dueSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          {dueEditing && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <input type="datetime-local" defaultValue={ticket.dueDate ? toLocalInputValue(new Date(ticket.dueDate)) : ''}
+                min={toLocalInputValue(new Date())}
+                onChange={(e) => { (e.currentTarget as any)._val = e.target.value; }}
+                id={`due-${ticket.id}`}
+                className="h-9 rounded-lg border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+              <Button size="sm" className="h-9" disabled={dueSaving}
+                onClick={() => {
+                  const el = document.getElementById(`due-${ticket.id}`) as HTMLInputElement | null;
+                  const v = el?.value || '';
+                  if (!v) { toast.error('Bitte Datum und Uhrzeit wählen'); return; }
+                  saveDeadline(v);
+                }}>
+                {dueSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Speichern'}
+              </Button>
+              <Button variant="ghost" size="sm" className="h-9" disabled={dueSaving} onClick={() => setDueEditing(false)}>Abbrechen</Button>
+            </div>
+          )}
+          {dl && !dueEditing && (
+            <p className={`text-xs font-medium ${dl.isOverdue ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{dl.label}</p>
+          )}
+        </div>
       </CardContent></Card>
 
       {(ticket.attachments?.length ?? 0) > 0 && (

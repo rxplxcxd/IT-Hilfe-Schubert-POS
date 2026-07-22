@@ -11,6 +11,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CountUp } from '@/components/count-up';
+import { LiveTicker } from '@/components/live-ticker';
+import { DbUsageCard } from '@/components/db-usage-card';
 import { toast } from 'sonner';
 
 interface DashboardData {
@@ -197,6 +199,20 @@ export function DashboardView({ onNavigate, onViewInvoice }: {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="p-4 space-y-4 pb-8">
+      {/* Lebendiger Begruessungs-Streifen */}
+      <motion.div variants={item}>
+        <LiveTicker items={[
+          data ? `${data.totalCustomers ?? 0} Kunden im System.` : 'Willkommen zurück.',
+          (stats?.summary?.openInvoices ?? 0) > 0 ? `${stats?.summary?.openInvoices} offene Rechnung(en) warten.` : 'Keine offenen Rechnungen. Stark.',
+          upcoming.length > 0 ? `${upcoming.length} Termin(e) stehen an.` : 'Aktuell keine anstehenden Termine.',
+          (stats?.summary?.pendingReminders ?? 0) > 0 ? `${stats?.summary?.pendingReminders} Erinnerung(en) fällig.` : 'Alle Erinnerungen erledigt.',
+          'Fristen im Blick behalten, dann bleibt alles entspannt.',
+        ]} />
+      </motion.div>
+
+      {/* Datenbank-Speicher (nur Admins) */}
+      <DbUsageCard />
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3">
         {statCards.map((stat) => {

@@ -406,6 +406,8 @@ model Ticket {
   createdByNo   Int?
   adminUnread   Boolean  @default(true)
   employeeUnread Boolean @default(false)
+  dueDate       DateTime?
+  reminderStage Int      @default(0) // 0=keine, 1=3T, 2=1T, 3=1h, 4=ueberfaellig gesendet
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt @default(now())
   closedAt      DateTime?

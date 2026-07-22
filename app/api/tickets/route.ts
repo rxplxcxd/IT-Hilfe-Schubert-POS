@@ -47,6 +47,12 @@ export async function POST(request: Request) {
     const category = ALLOWED_CATEGORIES.includes(data?.category) ? data.category : 'SONSTIGES';
     const description = (data?.description ?? '').trim();
     const attachments = Array.isArray(data?.attachments) ? data.attachments : [];
+    // Optionale Frist (Deadline). Wird als ISO-String erwartet.
+    let dueDate: Date | null = null;
+    if (data?.dueDate) {
+      const d = new Date(data.dueDate);
+      if (!isNaN(d.getTime())) dueDate = d;
+    }
 
     const ticketNumber = await getNextTicketNumber();
     const isAdmin = access.role === 'ADMIN';
@@ -59,6 +65,7 @@ export async function POST(request: Request) {
         priority,
         category,
         status: 'OFFEN',
+        dueDate,
         createdById: access.id,
         createdByName: access.name || access.email,
         createdByNo: access.employeeNo,

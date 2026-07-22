@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, ShoppingCart, FileText, Settings, Mail, Package, Wallet, ClipboardList, CalendarDays, LogOut, Bell, X, LifeBuoy, ArrowLeft } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, FileText, Settings, Mail, Package, Wallet, ClipboardList, CalendarDays, LogOut, Bell, X, LifeBuoy } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { NotificationProvider, useNotifications } from './notification-provider';
+import { VersionWatcher } from './version-watcher';
 import { notifyInfo, notifySuccess } from '@/lib/toast';
 import { APP_VERSION } from '@/lib/version';
 import { toast } from 'sonner';
@@ -49,6 +50,7 @@ function CountBadge({ count, ring = 'ring-card', className = '' }: { count: numb
 export function AppShell({ isAdmin = false, employeeNo = null }: { isAdmin?: boolean; employeeNo?: number | null }) {
   return (
     <NotificationProvider>
+      <VersionWatcher />
       <AppShellInner isAdmin={isAdmin} employeeNo={employeeNo} />
     </NotificationProvider>
   );
@@ -95,8 +97,6 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
     // Limit stack depth to 20
     if (viewHistory.current.length > 20) viewHistory.current.shift();
   }, [currentSnapshot]);
-
-  const canGoBack = viewHistory.current.length > 0;
 
   const goBack = useCallback(() => {
     const prev = viewHistory.current.pop();
@@ -258,11 +258,6 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
       <div className="flex flex-col flex-1 min-w-0 h-[100dvh]">
       <header className="bg-primary text-primary-foreground px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
-          {canGoBack && (
-            <button onClick={goBack} title="Zur\u00fcck" className="flex items-center justify-center rounded-lg bg-white/15 hover:bg-white/25 w-8 h-8 transition-colors -ml-1 mr-0.5">
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-          )}
           <div className="flex items-center gap-2 lg:hidden">
             <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-sm font-bold">IS</div>
             <div><h1 className="font-display text-base font-bold leading-tight">IT-Hilfe Schubert</h1><p className="text-xs opacity-80">Kassensystem</p></div>

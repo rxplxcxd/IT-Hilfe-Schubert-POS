@@ -175,3 +175,62 @@ export function ticketReplyHtml(d: TicketReplyEmailData) {
     <div style="margin:18px 0 0;padding:16px 18px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;font-size:14px;line-height:1.6;color:#334155;white-space:pre-wrap;">${d.body}</div>`;
   return layout('Neue Antwort', inner, 'Automatische Benachrichtigung aus dem POS-System von IT-Hilfe Schubert.');
 }
+
+export interface TicketDeadlineReminderData {
+  ticketNumber: string;
+  subject: string;
+  employeeName?: string;
+  dueDate: string | Date;
+  /** 'soon3' | 'soon1' | 'hour1' | 'overdue' */
+  stage: 'soon3' | 'soon1' | 'hour1' | 'overdue';
+}
+
+/** Erinnerung an eine gesetzte Ticket-Frist */
+export function ticketDeadlineReminderHtml(d: TicketDeadlineReminderData) {
+  const due = new Date(d.dueDate);
+  const dueStr = due.toLocaleString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
+
+  const stageMap: Record<string, { headline: string; intro: string; accent: string; badge: string }> = {
+    soon3: {
+      headline: 'Noch 3 Tage bis zur Frist',
+      intro: 'ein kleiner Hinweis vorab: Für dieses Ticket läuft in drei Tagen die gesetzte Frist ab. Genug Zeit, um es in Ruhe abzuschließen.',
+      accent: '#2563eb',
+      badge: 'Noch 3 Tage',
+    },
+    soon1: {
+      headline: 'Noch 1 Tag bis zur Frist',
+      intro: 'morgen ist es soweit: Die Frist für dieses Ticket läuft in einem Tag ab. Am besten heute noch einen Blick darauf werfen.',
+      accent: '#d97706',
+      badge: 'Noch 1 Tag',
+    },
+    hour1: {
+      headline: 'Nur noch etwa 1 Stunde',
+      intro: 'jetzt wird es knapp: Die Frist für dieses Ticket läuft in ungefähr einer Stunde ab. Bitte kümmere dich zeitnah darum.',
+      accent: '#dc2626',
+      badge: 'Noch 1 Stunde',
+    },
+    overdue: {
+      headline: 'Frist überschritten',
+      intro: 'die gesetzte Frist für dieses Ticket ist inzwischen abgelaufen. Bitte schau es dir so schnell wie möglich an und schließe es ab.',
+      accent: '#b91c1c',
+      badge: 'Überfällig',
+    },
+  };
+  const s = stageMap[d.stage] || stageMap.soon3;
+
+  const inner = `
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">Hallo${d.employeeName ? ' ' + d.employeeName : ''},</p>
+    <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#334155;">${s.intro}</p>
+    <div style="text-align:center;margin:0 0 20px;">
+      <span style="display:inline-block;background:${s.accent};color:#ffffff;font-weight:700;font-size:13px;letter-spacing:0.5px;padding:8px 16px;border-radius:999px;">${s.badge}</span>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:20px 22px;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${infoRow('Ticket', d.ticketNumber)}
+        ${infoRow('Betreff', d.subject)}
+        ${infoRow('Frist', dueStr)}
+      </table>
+    </div>
+    <p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#334155;">Du findest das Ticket direkt im Ticketsystem der App.</p>`;
+  return layout(s.headline, inner, 'Automatische Frist-Erinnerung aus dem POS-System von IT-Hilfe Schubert.');
+}

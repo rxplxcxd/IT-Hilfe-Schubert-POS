@@ -44,3 +44,29 @@ export function notifyPromise<T>(
 export function dismissToast(id?: string | number) {
   toast.dismiss(id);
 }
+
+/** Zufaellige Auswahl aus einer Liste (fuer lebendige, abwechslungsreiche Texte). */
+export function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/**
+ * Persistenter Hinweis auf eine neue App-Version.
+ * Bleibt stehen, bis der Nutzer neu laedt oder schliesst.
+ */
+export function notifyVersionUpdate(onReload: () => void) {
+  return toast('Neue Version verfügbar', {
+    description: 'Es gibt ein frisches Update der App. Lade neu, damit alles auf dem neuesten Stand ist.',
+    duration: Infinity,
+    icon: '🚀',
+    action: {
+      label: 'Jetzt neu laden',
+      onClick: onReload,
+    },
+  });
+}
+
+/** Abwechslungsreiche Erfolgsmeldung aus einem Themen-Pool. */
+export function notifyDynamicSuccess(pool: string[], description?: string) {
+  return notifySuccess(pick(pool), description);
+}

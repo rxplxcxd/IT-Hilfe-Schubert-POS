@@ -20,6 +20,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       include: {
         attachments: { orderBy: { createdAt: 'asc' } },
         messages: { orderBy: { createdAt: 'asc' } },
+        customer: { select: { id: true, firstName: true, lastName: true } },
       },
     });
     if (!ticket) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 });

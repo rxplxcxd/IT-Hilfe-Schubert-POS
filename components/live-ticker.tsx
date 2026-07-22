@@ -11,7 +11,7 @@ export const WIDGET_MODULES = [
   { id: 'clock', label: 'Uhrzeit', kind: 'core' },
   { id: 'date', label: 'Datum', kind: 'core' },
   { id: 'ticker', label: 'Info-Ticker', kind: 'core' },
-  { id: 'weather', label: 'Wetter (Malschwitz)', kind: 'chip' },
+  { id: 'weather', label: 'Wetter', kind: 'chip' },
   { id: 'appointments', label: 'Termine (anstehend)', kind: 'chip' },
   { id: 'mails', label: 'Ungelesene Mails', kind: 'chip' },
   { id: 'revenue', label: 'Umsatz (Monat)', kind: 'chip' },
@@ -92,17 +92,48 @@ export function LiveTicker({ items, config, data, mailsUnread }: {
     return () => clearInterval(clock);
   }, []);
 
-  // Wetter nur laden, wenn das Modul aktiv ist (Malschwitz ~51.29 / 14.55).
+  // Wetter laden – standortabhaengig anhand der PLZ des Mitarbeiters.
+  // Die PLZ wird ueber /api/profile/status geladen, per zippopotam.us in
+  // Koordinaten umgewandelt und dann bei open-meteo abgefragt. Faellt eine
+  // Stufe aus, wird auf Malschwitz (~51.29 / 14.55) zurueckgegriffen.
   useEffect(() => {
     if (!mounted || !showWeather) return;
     let cancelled = false;
+
+    const fetchWeather = async (lat: number, lon: number) => {
+      const base = 'https' + '://api.open-meteo.com/v1/forecast';
+      const url = base + '?latitude=' + lat + '&longitude=' + lon + '&current=temperature_2m,weather_code';
+      const res = await fetch(url);
+      const j = await res.json();
+      if (!cancelled && j?.current) {
+        setWeather({ temp: Math.round(j.current.temperature_2m), code: j.current.weather_code });
+      }
+    };
+
+    const resolveCoords = async (): Promise<{ lat: number; lon: number }> => {
+      try {
+        const sRes = await fetch('/api/profile/status');
+        const s = await sRes.json();
+        const zip = (s?.contactZip || '').toString().trim();
+        if (zip) {
+          const geoUrl = 'https' + '://api.zippopotam.us/de/' + encodeURIComponent(zip);
+          const gRes = await fetch(geoUrl);
+          if (gRes.ok) {
+            const g = await gRes.json();
+            const place = g?.places?.[0];
+            const lat = parseFloat(place?.latitude);
+            const lon = parseFloat(place?.longitude);
+            if (isFinite(lat) && isFinite(lon)) return { lat, lon };
+          }
+        }
+      } catch { /* ignorieren, Fallback unten */ }
+      return { lat: 51.29, lon: 14.55 };
+    };
+
     const load = async () => {
       try {
-        const base = 'https' + '://api.open-meteo.com/v1/forecast';
-        const url = base + '?latitude=51.29&longitude=14.55&current=temperature_2m,weather_code';
-        const res = await fetch(url);
-        const j = await res.json();
-        if (!cancelled && j?.current) setWeather({ temp: Math.round(j.current.temperature_2m), code: j.current.weather_code });
+        const { lat, lon } = await resolveCoords();
+        await fetchWeather(lat, lon);
       } catch { /* still ignorieren */ }
     };
     load();

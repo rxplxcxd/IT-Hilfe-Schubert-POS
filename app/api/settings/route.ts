@@ -60,6 +60,19 @@ export async function GET() {
       bic: settings?.bic ?? '',
       googleClientId: settings?.googleClientId ?? '',
       googleClientSecret: settings?.googleClientSecret ? '••••••••' : '',
+      googleClientSecretHint: (() => {
+        const s = (settings?.googleClientSecret ?? '').trim();
+        if (!s) return '';
+        const last3 = s.slice(-3);
+        const okPrefix = s.startsWith('GOCSPX-');
+        return `${s.length} Zeichen · endet auf …${last3}${okPrefix ? ' · beginnt mit GOCSPX-' : ' · beginnt NICHT mit GOCSPX-'}`;
+      })(),
+      googleClientIdHint: (() => {
+        const s = (settings?.googleClientId ?? '').trim();
+        if (!s) return '';
+        const okSuffix = s.endsWith('.apps.googleusercontent.com');
+        return `${s.length} Zeichen${okSuffix ? ' · endet auf .apps.googleusercontent.com' : ' · endet NICHT auf .apps.googleusercontent.com'}`;
+      })(),
       mailDomain: (settings as any)?.mailDomain ?? 'ithilfeschubert.xyz',
       disclaimerDefaultText: (settings as any)?.disclaimerDefaultText ?? '',
       hqStreet: (settings as any)?.hqStreet ?? 'Alte Schulstr 4',

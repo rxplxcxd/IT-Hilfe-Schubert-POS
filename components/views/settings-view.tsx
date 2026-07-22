@@ -30,6 +30,8 @@ interface SettingsData {
   bic: string;
   googleClientId: string;
   googleClientSecret: string;
+  googleClientSecretHint?: string;
+  googleClientIdHint?: string;
   mailDomain: string;
   disclaimerDefaultText: string;
   hqStreet: string;
@@ -331,7 +333,14 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
                 onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), googleClientId: e?.target?.value ?? ''})}
                 placeholder="xxxx.apps.googleusercontent.com"
                 className="font-mono text-xs"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
+              {settings?.googleClientIdHint ? (
+                <p className="text-[11px] text-muted-foreground mt-1">Gespeichert: {settings.googleClientIdHint}</p>
+              ) : null}
             </div>
             <div>
               <Label>Google Client-Secret</Label>
@@ -341,7 +350,17 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
                 placeholder="GOCSPX-..."
                 type="password"
                 className="font-mono text-xs"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
+              {settings?.googleClientSecretHint ? (
+                <p className="text-[11px] text-muted-foreground mt-1">Gespeichert: {settings.googleClientSecretHint}</p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground mt-1">Noch kein Secret gespeichert.</p>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-0.5">Die Punkte (••••) sind nur ein Platzhalter – das Secret ist gespeichert. Zum Ändern einfach das neue Secret eintippen.</p>
             </div>
             <div>
               <Label>E-Mail-Domain</Label>

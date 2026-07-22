@@ -98,7 +98,7 @@ export function StartseiteSettings() {
             <Button variant="outline" className="flex-1" onClick={reset}>Standard</Button>
             <Button className="flex-1 gap-2" onClick={save} disabled={saving}><Save className="w-4 h-4" />{saving ? 'Speichert...' : 'Speichern'}</Button>
           </div>
-          <p className="text-[11px] text-muted-foreground">Hinweis: „Ungelesene Mails“ benötigt eine verbundene Gmail-Verbindung. „Wetter“ zeigt die aktuelle Lage für Malschwitz.</p>
+          <p className="text-[11px] text-muted-foreground">Hinweis: „Ungelesene Mails“ benötigt eine verbundene Gmail-Verbindung. „Wetter“ zeigt die aktuelle Lage für deine hinterlegte PLZ.</p>
         </CardContent>
       </Card>
     </div>

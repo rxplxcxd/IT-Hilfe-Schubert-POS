@@ -379,7 +379,7 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
             {activeTab === 'belege' && (
               <BelegeHubView viewInvoiceId={viewInvoiceId} onViewInvoice={setViewInvoiceId} />
             )}
-            {activeTab === 'tickets' && <TicketsView isAdmin={isAdmin} />}
+            {activeTab === 'tickets' && <TicketsView isAdmin={isAdmin} onViewCustomer={(id: number) => { pushHistory(); setActiveTab('customers' as TabId); setViewCustomerDetailId(id); }} />}
             {activeTab === 'email' && <EmailView />}
             {activeTab === 'finances' && <FinancesView />}
             {activeTab === 'products' && <ProductsView />}

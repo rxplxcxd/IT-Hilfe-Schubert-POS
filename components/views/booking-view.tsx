@@ -33,9 +33,14 @@ interface CartItem {
   quantity: number;
 }
 
+// Modul-Cache (stale-while-revalidate): beim erneuten Oeffnen der Buchungs-
+// seite werden Kunden/Produkte sofort aus dem letzten Stand angezeigt und im
+// Hintergrund aktualisiert -> kein Warten/leerer Bildschirm mehr.
+let bookingCache: { customers: Customer[]; products: Product[] } | null = null;
+
 export function BookingView({ onInvoiceCreated }: { onInvoiceCreated: (id: number) => void }) {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>(bookingCache?.customers ?? []);
+  const [products, setProducts] = useState<Product[]>(bookingCache?.products ?? []);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -89,8 +94,11 @@ export function BookingView({ onInvoiceCreated }: { onInvoiceCreated: (id: numbe
         fetch('/api/customers'),
         fetch('/api/products'),
       ]);
-      setCustomers(await cRes.json() ?? []);
-      setProducts(await pRes.json() ?? []);
+      const c = (await cRes.json()) ?? [];
+      const p = (await pRes.json()) ?? [];
+      setCustomers(c);
+      setProducts(p);
+      bookingCache = { customers: c, products: p };
     } catch (e: any) { console.error(e); }
   }, []);
 

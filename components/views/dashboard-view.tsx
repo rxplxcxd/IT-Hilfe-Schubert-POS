@@ -48,10 +48,12 @@ const DONUT_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#16a34a', '#ea580c', '#d
 
 // Zeitfenster fuer den Umsatz-Chart (Item 4)
 const RANGES = [
-  { id: '24h', label: 'Letzte 24 Std.' },
+  { id: '24h', label: '1 Tag' },
+  { id: '2d', label: '2 Tage' },
   { id: '7d', label: '7 Tage' },
   { id: '14d', label: '14 Tage' },
   { id: '30d', label: '30 Tage' },
+  { id: '60d', label: '60 Tage' },
   { id: '90d', label: '90 Tage' },
   { id: '180d', label: '6 Monate' },
   { id: '1yr', label: '1 Jahr' },

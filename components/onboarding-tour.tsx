@@ -102,18 +102,28 @@ export function OnboardingTour({ onFinish }: { onFinish?: () => void }) {
   let tipLeft = rect ? rect.left + rect.width / 2 - tooltipWidth / 2 : vw / 2 - tooltipWidth / 2;
   tipLeft = Math.max(12, Math.min(tipLeft, vw - tooltipWidth - 12));
 
-  const blurPanel = 'fixed bg-background/45 backdrop-blur-md';
+  // EINE einzige, vollflaechige Weichzeichner-Ebene mit einem rechteckigen
+  // "Loch" ueber dem Ziel (clip-path Donut-Polygon). Nur EIN backdrop-filter
+  // Element -> auf iOS Safari kein Blur-Ausblutung in das Loch, das Ziel
+  // bleibt also garantiert scharf.
+  let holeClip: string | undefined;
+  if (rect) {
+    const L = Math.max(0, rect.left);
+    const T = Math.max(0, rect.top);
+    const R = Math.min(vw, rect.left + rect.width);
+    const B = Math.min(vh, rect.top + rect.height);
+    holeClip = `polygon(0px 0px, ${vw}px 0px, ${vw}px ${vh}px, 0px ${vh}px, 0px 0px, ${L}px ${T}px, ${L}px ${B}px, ${R}px ${B}px, ${R}px ${T}px, ${L}px ${T}px)`;
+  }
 
   return createPortal(
     <div className="fixed inset-0 z-[200]" aria-live="polite">
-      {/* Vier weichgezeichnete Flaechen rund um das Ziel. Das Ziel selbst
-          bleibt frei und damit scharf. */}
+      {/* Weichgezeichnete Flaeche mit Loch ueber dem Ziel. */}
+      <div
+        className="fixed inset-0 bg-background/45 backdrop-blur-md"
+        style={holeClip ? { clipPath: holeClip, WebkitClipPath: holeClip } : undefined}
+      />
       {rect ? (
         <>
-          <div className={blurPanel} style={{ top: 0, left: 0, width: '100%', height: Math.max(0, rect.top) }} />
-          <div className={blurPanel} style={{ top: rect.top + rect.height, left: 0, width: '100%', height: Math.max(0, vh - (rect.top + rect.height)) }} />
-          <div className={blurPanel} style={{ top: rect.top, left: 0, width: Math.max(0, rect.left), height: rect.height }} />
-          <div className={blurPanel} style={{ top: rect.top, left: rect.left + rect.width, width: Math.max(0, vw - (rect.left + rect.width)), height: rect.height }} />
           {/* Klick-Sperre ueber dem Ziel, damit die Tour nicht ungewollt wegspringt. */}
           <div className="fixed" style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height, cursor: 'default' }} />
           {/* Markierungsring */}
@@ -122,9 +132,7 @@ export function OnboardingTour({ onFinish }: { onFinish?: () => void }) {
             style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height, boxShadow: '0 0 0 4px rgba(30,64,175,0.25)' }}
           />
         </>
-      ) : (
-        <div className="fixed inset-0 bg-background/45 backdrop-blur-md" />
-      )}
+      ) : null}
 
       {/* Sprechblase */}
       <div

@@ -20,6 +20,7 @@ export async function GET() {
       orderBy: { updatedAt: 'desc' },
       include: {
         attachments: true,
+        customer: { select: { id: true, firstName: true, lastName: true } },
         _count: { select: { messages: true } },
       },
     });
@@ -47,6 +48,12 @@ export async function POST(request: Request) {
     const category = ALLOWED_CATEGORIES.includes(data?.category) ? data.category : 'SONSTIGES';
     const description = (data?.description ?? '').trim();
     const attachments = Array.isArray(data?.attachments) ? data.attachments : [];
+    // Optionale Verknuepfung zu einem Kunden.
+    let customerId: number | null = null;
+    if (data?.customerId !== undefined && data?.customerId !== null && data?.customerId !== '') {
+      const cid = parseInt(String(data.customerId));
+      if (!isNaN(cid) && cid > 0) customerId = cid;
+    }
     // Optionale Frist (Deadline). Wird als ISO-String erwartet.
     let dueDate: Date | null = null;
     if (data?.dueDate) {
@@ -66,6 +73,7 @@ export async function POST(request: Request) {
         category,
         status: 'OFFEN',
         dueDate,
+        customerId,
         createdById: access.id,
         createdByName: access.name || access.email,
         createdByNo: access.employeeNo,
@@ -83,7 +91,7 @@ export async function POST(request: Request) {
             })),
         },
       },
-      include: { attachments: true },
+      include: { attachments: true, customer: { select: { id: true, firstName: true, lastName: true } } },
     });
 
     // Benachrichtigung an den Admin (nur wenn vom Mitarbeiter erstellt).

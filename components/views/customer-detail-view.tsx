@@ -54,8 +54,8 @@ export function CustomerDetailView({ customerId, onBack, onWriteEmail, onViewInv
         fetch(`/api/devices?customerId=${customerId}`),
         fetch(`/api/reminders?customerId=${customerId}`),
       ]);
-      const cData = await cRes.json();
-      setCustomer(cData);
+      const cData = cRes.ok ? await cRes.json() : null;
+      setCustomer(cData && !cData.error ? cData : null);
       const allInvoices = await iRes.json();
       setInvoices((allInvoices || []).filter((i: any) => i.customerId === customerId));
       setWorkLogs(await wRes.json() || []);
@@ -210,7 +210,10 @@ export function CustomerDetailView({ customerId, onBack, onWriteEmail, onViewInv
         <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="w-5 h-5" /></Button>
         <div className="flex-1">
           <h2 className="font-display font-semibold text-lg">{customer.firstName} {customer.lastName}</h2>
-          <p className="text-xs text-muted-foreground">{getZoneLabel(customer.zone)}</p>
+          <p className="text-xs text-muted-foreground">
+            {getZoneLabel(customer.zone)}
+            {customer.ownerName ? <> · MA: {customer.ownerName}{customer.ownerNo ? ` (M${String(customer.ownerNo).padStart(3, '0')})` : ''}</> : null}
+          </p>
         </div>
         {hasSchutzbrief && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1"><Shield className="w-3 h-3" /> Schutzbrief</span>}
       </div>

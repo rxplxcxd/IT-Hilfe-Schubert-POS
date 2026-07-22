@@ -60,6 +60,8 @@ export async function GET() {
       complete,
       onboardingDone: !!user?.onboardingDone,
       isAdmin,
+      contactZip: user?.contactZip || '',
+      contactCity: user?.contactCity || '',
     });
   } catch (e) {
     console.error('[profile/status] Fehler:', e);

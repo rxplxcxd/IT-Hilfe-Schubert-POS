@@ -8,9 +8,11 @@ import { getScope } from '@/lib/access';
 type Bucket = 'hour' | 'day' | 'week' | 'month';
 const RANGES: Record<string, { ms: number; bucket: Bucket }> = {
   '24h': { ms: 24 * 3600e3, bucket: 'hour' },
+  '2d': { ms: 2 * 86400e3, bucket: 'hour' },
   '7d': { ms: 7 * 86400e3, bucket: 'day' },
   '14d': { ms: 14 * 86400e3, bucket: 'day' },
   '30d': { ms: 30 * 86400e3, bucket: 'day' },
+  '60d': { ms: 60 * 86400e3, bucket: 'day' },
   '90d': { ms: 90 * 86400e3, bucket: 'week' },
   '180d': { ms: 180 * 86400e3, bucket: 'month' },
   '1yr': { ms: 365 * 86400e3, bucket: 'month' },

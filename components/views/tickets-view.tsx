@@ -49,6 +49,7 @@ interface Ticket {
   updatedAt: string;
   attachments?: Attachment[];
   messages?: Message[];
+  customer?: { id: number; firstName: string; lastName: string } | null;
   _count?: { messages: number };
 }
 
@@ -132,7 +133,7 @@ function parseMsgAttachments(raw?: string): Attachment[] {
   } catch { return []; }
 }
 
-export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
+export function TicketsView({ isAdmin, onViewCustomer }: { isAdmin: boolean; onViewCustomer?: (id: number) => void }) {
   const { refresh } = useNotifications();
   const [mode, setMode] = useState<'list' | 'new' | 'detail'>('list');
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -144,7 +145,7 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [prioFilter, setPrioFilter] = useState('ALL');
   const [employeeFilter, setEmployeeFilter] = useState('ALL');
-  const [sortBy, setSortBy] = useState('PRIO'); // PRIO | NEUESTE | AELTESTE | ALTER
+  const [sortBy, setSortBy] = useState('NEUESTE'); // PRIO | NEUESTE | AELTESTE | ALTER
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -342,6 +343,7 @@ export function TicketsView({ isAdmin }: { isAdmin: boolean }) {
       onBack={() => { setMode('list'); setDetail(null); fetchList(); refresh(); }}
       onChanged={(t) => setDetail(t)}
       afterMutate={() => { fetchList(); refresh(); }}
+      onViewCustomer={onViewCustomer}
     />
   );
 }
@@ -374,6 +376,22 @@ function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: (
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Optionale Kundenverknuepfung
+  const [custList, setCustList] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
+  const [customerId, setCustomerId] = useState<string>('');
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/customers');
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data)) {
+          setCustList(data.map((c: any) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName })));
+        }
+      } catch { /* ignorieren */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -397,7 +415,7 @@ function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: (
     try {
       const res = await fetch('/api/tickets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: subject.trim(), description: description.trim(), priority, category, attachments, dueDate: newDue ? new Date(newDue).toISOString() : null }),
+        body: JSON.stringify({ subject: subject.trim(), description: description.trim(), priority, category, attachments, dueDate: newDue ? new Date(newDue).toISOString() : null, customerId: customerId || null }),
       });
       if (!res.ok) { toast.error('Ticket konnte nicht erstellt werden'); return; }
       toast.success('Ticket erstellt');
@@ -435,6 +453,15 @@ function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: (
               <option value="HOCH">Hoch</option>
             </select>
           </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Kunde (optional)</Label>
+          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}
+            className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+            <option value="">— kein Kunde —</option>
+            {custList.map((c) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
+          </select>
+          <p className="text-xs text-muted-foreground">Verknuepft das Ticket mit einem Kunden. Der Name wird im Ticket anklickbar und oeffnet die Kundenakte.</p>
         </div>
         <div className="space-y-1.5">
           <Label className="flex items-center gap-1.5"><CalendarClock className="h-4 w-4 text-muted-foreground" /> Frist (optional)</Label>
@@ -482,13 +509,14 @@ function NewTicket({ onCancel, onCreated }: { onCancel: () => void; onCreated: (
 }
 
 // =============================== DETAIL ===============================
-function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate }: {
+function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate, onViewCustomer }: {
   isAdmin: boolean;
   ticket: Ticket | null;
   loading: boolean;
   onBack: () => void;
   onChanged: (t: Ticket) => void;
   afterMutate: () => void;
+  onViewCustomer?: (id: number) => void;
 }) {
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
@@ -609,6 +637,16 @@ function TicketDetail({ isAdmin, ticket, loading, onBack, onChanged, afterMutate
             {ticket.createdByName}{ticket.createdByNo ? ` (${employeeCode(ticket.createdByNo)})` : ''}
           </span>
           <span>Erstellt: {formatDateTime(ticket.createdAt)}</span>
+          {ticket.customer && (
+            <button
+              type="button"
+              onClick={() => onViewCustomer?.(ticket.customer!.id)}
+              className="inline-flex items-center gap-1 text-primary font-medium hover:underline disabled:no-underline"
+              disabled={!onViewCustomer}
+            >
+              <UserIcon className="h-3 w-3" /> {ticket.customer.firstName} {ticket.customer.lastName}
+            </button>
+          )}
         </div>
         {ticket.description && (
           <p className="text-sm whitespace-pre-wrap text-foreground/90 pt-1">{ticket.description}</p>

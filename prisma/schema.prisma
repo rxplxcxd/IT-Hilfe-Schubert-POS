@@ -31,6 +31,7 @@ model Customer {
   quotes    Quote[]
   reminders Reminder[]
   orders    Order[]
+  tickets   Ticket[]
 
   @@index([ownerId])
 }
@@ -441,6 +442,8 @@ model Ticket {
   createdById   Int
   createdByName String   @default("")
   createdByNo   Int?
+  customerId    Int?
+  customer      Customer? @relation(fields: [customerId], references: [id])
   adminUnread   Boolean  @default(true)
   employeeUnread Boolean @default(false)
   dueDate       DateTime?
@@ -453,6 +456,7 @@ model Ticket {
 
   @@index([createdById])
   @@index([status])
+  @@index([customerId])
 }
 
 model TicketAttachment {

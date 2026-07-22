@@ -44,14 +44,19 @@ export async function GET(request: Request) {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
 
+    // WICHTIG: refreshToken NUR ueberschreiben, wenn Google wirklich eines
+    // mitschickt. Sonst wuerde ein leerer Wert ein gueltiges Token loeschen
+    // und die Verbindung waere sofort wieder kaputt.
+    const updateData: any = {
+      accessToken: tokens.access_token || '',
+      expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+      email: userInfo.data.email || '',
+    };
+    if (tokens.refresh_token) updateData.refreshToken = tokens.refresh_token;
+
     await prisma.gmailToken.upsert({
       where: { userId },
-      update: {
-        accessToken: tokens.access_token || '',
-        refreshToken: tokens.refresh_token || '',
-        expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
-        email: userInfo.data.email || '',
-      },
+      update: updateData,
       create: {
         userId,
         accessToken: tokens.access_token || '',
@@ -64,6 +69,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(base + '/?gmail_connected=true');
   } catch (error: any) {
     console.error('Gmail callback error:', error);
-    return NextResponse.redirect(base + '/?gmail_error=auth_failed');
+    const detail = encodeURIComponent((error?.message || 'auth_failed').slice(0, 120));
+    return NextResponse.redirect(base + '/?gmail_error=' + detail);
   }
 }

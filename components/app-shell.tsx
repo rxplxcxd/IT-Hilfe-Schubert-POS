@@ -157,6 +157,36 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
     return () => { mounted = false; clearInterval(interval); };
   }, [isAdmin, navigateTo, refresh]);
 
+  // Rueckmeldung nach dem Gmail-OAuth-Redirect (?gmail_connected / ?gmail_error)
+  const gmailChecked = useRef(false);
+  useEffect(() => {
+    if (gmailChecked.current) return;
+    gmailChecked.current = true;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ok = params.get('gmail_connected');
+      const err = params.get('gmail_error');
+      if (ok) {
+        notifySuccess('Gmail verbunden', 'Dein Google-Konto wurde erfolgreich verbunden.');
+        setTimeout(() => navigateTo('email'), 300);
+      } else if (err) {
+        const map: Record<string, string> = {
+          no_code: 'Google hat keinen Code zurückgegeben.',
+          no_user: 'Sitzung nicht erkannt. Bitte erneut anmelden und nochmal versuchen.',
+          not_configured: 'Google-Zugangsdaten fehlen in den Einstellungen.',
+          auth_failed: 'Verbindung fehlgeschlagen.',
+        };
+        toast.error('Gmail-Verbindung fehlgeschlagen', { description: map[err] || decodeURIComponent(err), duration: 9000 });
+      }
+      if (ok || err) {
+        const u = new URL(window.location.href);
+        u.searchParams.delete('gmail_connected');
+        u.searchParams.delete('gmail_error');
+        window.history.replaceState({}, '', u.pathname + u.search);
+      }
+    } catch { /* ignore */ }
+  }, [navigateTo]);
+
   // Einmalige Willkommens-Zusammenfassung beim ersten Laden
   const welcomed = useRef(false);
   useEffect(() => {

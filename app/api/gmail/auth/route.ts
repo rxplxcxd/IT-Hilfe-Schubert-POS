@@ -53,7 +53,9 @@ export async function GET() {
           redirectUri,
         });
       } catch {
-        // Token ungueltig -> neue Anmeldung noetig
+        // Token ungueltig (z.B. nach Wechsel der Client-ID) -> loeschen,
+        // damit ein sauberes Neu-Verbinden moeglich ist.
+        try { await prisma.gmailToken.delete({ where: { userId: access.id } }); } catch {}
       }
     }
 

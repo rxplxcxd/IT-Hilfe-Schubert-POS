@@ -86,8 +86,10 @@ export async function POST(request: Request) {
     });
 
     // Einladungs-Mail senden
-    const appUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || '';
-    const inviteUrl = appUrl + '/invite/' + token;
+    const hdrHost = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
+    const hdrProto = request.headers.get('x-forwarded-proto') || 'https';
+    const appUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || (hdrHost ? hdrProto + '://' + hdrHost : 'https://www.ithilfeschubert.xyz');
+    const inviteUrl = appUrl.replace(/\/$/, '') + '/invite/' + token;
 
     try {
       await sendEmail({

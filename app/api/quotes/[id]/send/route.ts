@@ -22,7 +22,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
     const acceptUrl = `${appUrl}/api/quotes/${quoteId}/public-accept`;
 
-    const formatCurrency = (n: number) => n.toFixed(2).replace('.', ',') + ' \u20ac';
+    const formatCurrency = (n: number) => n.toFixed(2).replace('.', ',') + ' €';
 
     const itemRows = quote.items.map((i) =>
       `<tr><td style="padding:8px;border-bottom:1px solid #eee">${i.name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatCurrency(i.total)}</td></tr>`

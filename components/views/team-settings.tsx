@@ -149,11 +149,11 @@ export function TeamSettings() {
         notifySuccess('Zugang freigegeben', 'Der Mitarbeiter wurde per E-Mail benachrichtigt und kann sich jetzt anmelden.');
       else if (action === 'reject')
         notifySuccess('Anfrage abgelehnt', 'Der Zugang wurde abgelehnt.');
-      else notifySuccess('Aktualisiert', 'Die \u00c4nderung wurde gespeichert.');
+      else notifySuccess('Aktualisiert', 'Die Änderung wurde gespeichert.');
       await load();
       refresh();
     } catch {
-      notifyError('Aktion fehlgeschlagen', 'Die \u00c4nderung konnte nicht gespeichert werden.');
+      notifyError('Aktion fehlgeschlagen', 'Die Änderung konnte nicht gespeichert werden.');
     } finally {
       setBusy(null);
     }
@@ -186,11 +186,11 @@ export function TeamSettings() {
     try {
       const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
-      notifySuccess('Benutzer entfernt', 'Der Zugang wurde gel\u00f6scht.');
+      notifySuccess('Benutzer entfernt', 'Der Zugang wurde gelöscht.');
       await load();
       refresh();
     } catch {
-      notifyError('L\u00f6schen fehlgeschlagen');
+      notifyError('Löschen fehlgeschlagen');
     } finally {
       setBusy(null);
     }
@@ -215,7 +215,7 @@ export function TeamSettings() {
         setInviting(false);
         return;
       }
-      notifySuccess('Einladung gesendet!', `${invName.trim()} erh\u00e4lt eine E-Mail mit dem Einladungslink.`);
+      notifySuccess('Einladung gesendet!', `${invName.trim()} erhält eine E-Mail mit dem Einladungslink.`);
       setInviteResult({ url: j?.inviteUrl || '', email: invEmail.trim() });
       setInvName('');
       setInvEmail('');
@@ -246,7 +246,7 @@ export function TeamSettings() {
     return (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" onClick={() => { setDetailId(null); setDetail(null); }} className="gap-1.5">
-          <ArrowLeft className="h-4 w-4" /> Zur\u00fcck zum Team
+          <ArrowLeft className="h-4 w-4" /> Zurück zum Team
         </Button>
 
         {detailLoading || !detail || !u ? (
@@ -341,7 +341,7 @@ export function TeamSettings() {
             <div className="grid grid-cols-2 gap-2">
               <StatCard icon={<Users className="w-4 h-4" />} label="Kunden" value={String(detail.stats.customerCount)} />
               <StatCard icon={<FileText className="w-4 h-4" />} label="Rechnungen" value={String(detail.stats.invoiceCount)} />
-              <StatCard icon={<ShoppingCart className="w-4 h-4" />} label="Auftr\u00e4ge" value={String(detail.stats.orderCount)} />
+              <StatCard icon={<ShoppingCart className="w-4 h-4" />} label="Aufträge" value={String(detail.stats.orderCount)} />
               <StatCard icon={<Euro className="w-4 h-4" />} label="Umsatz (bezahlt)" value={formatCurrency(detail.stats.revenue)} />
             </div>
 
@@ -394,7 +394,7 @@ export function TeamSettings() {
           {showInvite && !inviteResult && (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Gib den Namen und die private E-Mail-Adresse des neuen Mitarbeiters ein. Er erh\u00e4lt eine E-Mail mit einem Einladungslink und kann sofort loslegen.
+                Gib den Namen und die private E-Mail-Adresse des neuen Mitarbeiters ein. Er erhält eine E-Mail mit einem Einladungslink und kann sofort loslegen.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -437,14 +437,14 @@ export function TeamSettings() {
                 </div>
               )}
               <Button variant="ghost" size="sm" onClick={() => { setInviteResult(null); setShowInvite(false); }}>
-                Schlie\u00dfen
+                Schließen
               </Button>
             </div>
           )}
 
           {!showInvite && !inviteResult && (
             <p className="text-xs text-muted-foreground">
-              Lade neue Teammitglieder per E-Mail ein. Sie k\u00f6nnen sofort ein Passwort setzen und loslegen — ohne Wartezeit.
+              Lade neue Teammitglieder per E-Mail ein. Sie können sofort ein Passwort setzen und loslegen — ohne Wartezeit.
             </p>
           )}
         </CardContent>
@@ -493,7 +493,7 @@ export function TeamSettings() {
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {statusBadge('INVITED')}
-                    <button disabled={busy === u.id} onClick={() => del(u.id)} className="text-muted-foreground hover:text-red-600 transition-colors p-1" title="Einladung zur\u00fcckziehen">
+                    <button disabled={busy === u.id} onClick={() => del(u.id)} className="text-muted-foreground hover:text-red-600 transition-colors p-1" title="Einladung zurückziehen">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -571,7 +571,7 @@ export function TeamSettings() {
       </Card>
 
       <p className="text-xs text-muted-foreground px-1 leading-relaxed">
-        Lade neue Mitarbeiter per Einladung ein — sie k\u00f6nnen sofort loslegen. Alternativ k\u00f6nnen sich Mitarbeiter auch selbst registrieren; der Zugang muss dann von dir freigegeben werden.
+        Lade neue Mitarbeiter per Einladung ein — sie können sofort loslegen. Alternativ können sich Mitarbeiter auch selbst registrieren; der Zugang muss dann von dir freigegeben werden.
       </p>
     </div>
   );

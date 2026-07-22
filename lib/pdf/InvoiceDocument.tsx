@@ -5,7 +5,7 @@ function euro(n: number): string {
   return (Number(n) || 0)
     .toFixed(2)
     .replace('.', ',')
-    .replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' \u20ac';
+    .replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' €';
 }
 
 function formatDateDE(date: Date | string | null | undefined): string {
@@ -135,7 +135,7 @@ export function InvoiceDocument({ invoice, settings }: Props) {
         </View>
 
         <View style={styles.taxNotice}>
-          <Text>{s.taxInfo ?? 'Gemaess \u00a7 19 UStG wird keine Umsatzsteuer berechnet.'}</Text>
+          <Text>{s.taxInfo ?? 'Gemaess § 19 UStG wird keine Umsatzsteuer berechnet.'}</Text>
         </View>
 
         {(s.iban ?? '').trim() ? (

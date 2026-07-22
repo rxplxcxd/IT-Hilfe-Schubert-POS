@@ -70,7 +70,7 @@ export async function GET() {
         id: `ticket-${t.id}`,
         entityId: t.id,
         title: `${t.ticketNumber}: ${t.subject}`,
-        subtitle: `${t.status}${t._count.messages > 0 ? ` \u00b7 ${t._count.messages} Nachricht${t._count.messages === 1 ? '' : 'en'}` : ''}`,
+        subtitle: `${t.status}${t._count.messages > 0 ? ` · ${t._count.messages} Nachricht${t._count.messages === 1 ? '' : 'en'}` : ''}`,
         time: t.updatedAt,
         status: t.status,
         unread,
@@ -91,7 +91,7 @@ export async function GET() {
         id: `inv-${inv.id}`,
         entityId: inv.id,
         title: `Rechnung ${inv.invoiceNumber}`,
-        subtitle: `${inv.customer?.firstName ?? ''} ${inv.customer?.lastName ?? ''} \u00b7 ${inv.total.toFixed(2).replace('.', ',')} \u20ac \u00b7 ${inv.status}`,
+        subtitle: `${inv.customer?.firstName ?? ''} ${inv.customer?.lastName ?? ''} · ${inv.total.toFixed(2).replace('.', ',')} € · ${inv.status}`,
         time: inv.createdAt,
         status: inv.status,
       });

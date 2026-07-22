@@ -274,7 +274,7 @@ export function BelegeHubView({ viewInvoiceId, onViewInvoice }: {
                             </div>
                             <p className="text-xs text-muted-foreground truncate">
                               {o.customer?.firstName} {o.customer?.lastName}
-                              {o.title ? ` \u2013 ${o.title}` : ''}
+                              {o.title ? ` – ${o.title}` : ''}
                             </p>
                             <p className="text-[10px] text-muted-foreground">{formatDate(o.createdAt)}</p>
                           </div>

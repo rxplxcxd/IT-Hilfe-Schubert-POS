@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { prisma } from '@/lib/prisma';
 import { getAccessForCurrentUser } from '@/lib/access';
-import { getAuthedClientForUser, companyAddress, companyInboxQuery } from '@/lib/gmail';
+import { getAuthedClientForUser, companyAddress, companyInboxQuery, gmailErrorHint } from '@/lib/gmail';
 
 function decodeBase64(data: string) {
   try {
@@ -116,10 +116,8 @@ export async function GET(request: Request) {
       prefixSet: !!compAddress,
     });
   } catch (error: any) {
-    console.error('Gmail messages error:', error);
-    if (error?.code === 401 || error?.response?.status === 401) {
-      return NextResponse.json({ error: 'Token abgelaufen. Bitte erneut verbinden.' }, { status: 401 });
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Gmail messages error:', error?.response?.data || error?.message || error);
+    const hint = gmailErrorHint(error);
+    return NextResponse.json({ error: hint.message }, { status: hint.status });
   }
 }

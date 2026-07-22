@@ -71,8 +71,11 @@ export function EmailView() {
       const params = new URLSearchParams();
       if (query) params.set('q', query);
       const res = await fetch(`/api/gmail/messages?${params}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error('E-Mails konnten nicht geladen werden', { description: data?.error, duration: 12000 });
+        return;
+      }
       setMessages(data.messages || []);
     } catch {
       toast.error('E-Mails konnten nicht geladen werden');
@@ -110,7 +113,11 @@ export function EmailView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(compose),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error('Fehler beim Senden', { description: data?.error, duration: 12000 });
+        return;
+      }
       toast.success('E-Mail gesendet!');
       setComposing(false);
       setCompose({ to: '', subject: '', body: '' });

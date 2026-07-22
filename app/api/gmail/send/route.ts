@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { prisma } from '@/lib/prisma';
 import { getAccessForCurrentUser } from '@/lib/access';
-import { getAuthedClientForUser, getUserToken, companyAddress } from '@/lib/gmail';
+import { getAuthedClientForUser, getUserToken, companyAddress, gmailErrorHint } from '@/lib/gmail';
 
 function encodeHeader(value: string) {
   // RFC 2047 Encoding fuer Nicht-ASCII-Zeichen im Header (z.B. Umlaute).
@@ -66,7 +66,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, messageId: result.data.id });
   } catch (error: any) {
-    console.error('Gmail send error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Gmail send error:', error?.response?.data || error?.message || error);
+    const hint = gmailErrorHint(error);
+    return NextResponse.json({ error: hint.message }, { status: hint.status });
   }
 }

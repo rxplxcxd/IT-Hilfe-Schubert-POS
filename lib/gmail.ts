@@ -161,3 +161,51 @@ export function companyInboxQuery(address: string | null, userSearch?: string): 
   }
   return parts.length ? parts.join(' ') : undefined;
 }
+
+/**
+ * Uebersetzt einen Fehler aus dem googleapis-Client in eine verstaendliche
+ * deutsche Meldung. Deckt die haeufigsten Stolpersteine ab:
+ * - Gmail API im Projekt nicht aktiviert (accessNotConfigured / disabled)
+ * - Fehlende/zu wenige Scopes (insufficient / ACCESS_TOKEN_SCOPE)
+ * - Abgelaufenes/zurueckgezogenes Token (invalid_grant / 401)
+ * - App im Testmodus, Nutzer kein Testnutzer (access_denied)
+ */
+export function gmailErrorHint(error: any): { status: number; message: string } {
+  const raw =
+    error?.response?.data?.error?.message ||
+    error?.errors?.[0]?.message ||
+    error?.message ||
+    '';
+  const reason =
+    error?.response?.data?.error?.errors?.[0]?.reason ||
+    error?.errors?.[0]?.reason ||
+    '';
+  const code = error?.code || error?.response?.status || 0;
+  const s = (raw + ' ' + reason).toLowerCase();
+
+  if (s.includes('has not been used') || s.includes('accessnotconfigured') || s.includes('is disabled') || s.includes('service_disabled')) {
+    return {
+      status: 424,
+      message: 'Die Gmail API ist in deinem Google-Projekt noch nicht aktiviert. Öffne die Google Cloud Console → "APIs & Dienste" → "Gmail API" → auf "Aktivieren" klicken. Danach 1-2 Minuten warten und erneut versuchen.',
+    };
+  }
+  if (s.includes('insufficient') || s.includes('scope') || s.includes('access_token_scope')) {
+    return {
+      status: 403,
+      message: 'Die App hat nicht die nötigen Gmail-Berechtigungen erhalten. Bitte im E-Mail-Tab auf "Trennen" klicken und dann neu verbinden — im Google-Fenster ALLE Häkchen (Lesen & Senden) bestätigen.',
+    };
+  }
+  if (s.includes('invalid_grant') || code === 401 || s.includes('unauthorized')) {
+    return {
+      status: 401,
+      message: 'Die Gmail-Verbindung ist abgelaufen oder wurde zurückgezogen. Bitte im E-Mail-Tab neu verbinden.',
+    };
+  }
+  if (s.includes('access_denied') || s.includes('test')) {
+    return {
+      status: 403,
+      message: 'Zugriff von Google verweigert. Falls dein OAuth-Zustimmungsbildschirm im Test-Modus ist, trage dein Google-Konto unter "Zielgruppe/Testnutzer" ein — oder veröffentliche die App.',
+    };
+  }
+  return { status: 500, message: raw || 'Unbekannter Fehler bei der Gmail-Kommunikation.' };
+}

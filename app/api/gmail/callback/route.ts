@@ -4,10 +4,10 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { prisma } from '@/lib/prisma';
 import { getAccessForCurrentUser } from '@/lib/access';
-import { buildOAuthClient } from '@/lib/gmail';
+import { buildOAuthClient, getAppOrigin } from '@/lib/gmail';
 
 function appBase() {
-  return (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
+  return getAppOrigin();
 }
 
 export async function GET(request: Request) {

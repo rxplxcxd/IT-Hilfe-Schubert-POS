@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Save, Upload, Building2, CreditCard, Mail, FileText, Image as ImageIcon, CheckCircle2, Globe, Sun, Moon, Monitor, ClipboardList, MapPin, Users, ShieldCheck } from 'lucide-react';
+import { Save, Upload, Building2, CreditCard, Mail, FileText, Image as ImageIcon, CheckCircle2, Globe, Sun, Moon, Monitor, ClipboardList, MapPin, Users, ShieldCheck, LayoutDashboard } from 'lucide-react';
 import { TeamSettings } from './team-settings';
 import { EmployeeManagement } from './employee-management';
+import { StartseiteSettings } from './startseite-settings';
 import { useTheme } from 'next-themes';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -125,12 +126,18 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  // Exakte Redirect-URI fuer Google Cloud Console (zur Laufzeit aus dem Origin).
+  const redirectUri = mounted && typeof window !== 'undefined'
+    ? window.location.origin + '/api/gmail/callback'
+    : '';
+
   if (loading) {
     return <div className="flex justify-center py-8"><div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" /></div>;
   }
 
   const sections = [
     { id: 'company', label: isAdmin ? 'Firma' : 'Meine Daten', icon: Building2 },
+    { id: 'startseite', label: 'Startseite', icon: LayoutDashboard },
     ...(isAdmin ? [
       { id: 'invoice', label: 'Rechnung', icon: FileText },
       { id: 'order', label: 'Auftrag', icon: ClipboardList },
@@ -291,10 +298,20 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
                 <li>Aktiviere die <strong>Gmail API</strong></li>
                 <li>Unter "Anmeldedaten" → "OAuth 2.0-Client-ID" erstellen</li>
                 <li>Wähle "Webanwendung" als Typ</li>
-                <li>Füge als Redirect-URI hinzu: <code className="bg-blue-100 px-1 rounded">{'<deine-app-url>'}/api/gmail/callback</code></li>
+                <li>Füge als <strong>autorisierte Redirect-URI</strong> exakt die unten angezeigte URL hinzu</li>
                 <li>Kopiere Client-ID und Secret hierher</li>
               </ol>
             </div>
+            {redirectUri && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 space-y-1">
+                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Diese Redirect-URI in Google eintragen (exakt):</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-[11px] break-all bg-background border border-border rounded px-2 py-1 font-mono">{redirectUri}</code>
+                  <Button type="button" size="sm" variant="outline" className="shrink-0 text-xs" onClick={() => { navigator.clipboard?.writeText(redirectUri); toast.success('URL kopiert'); }}>Kopieren</Button>
+                </div>
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">Muss zeichengenau übereinstimmen, sonst lehnt Google mit "invalid_request" ab.</p>
+              </div>
+            )}
             <div>
               <Label>Google Client-ID</Label>
               <Input
@@ -332,6 +349,8 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
           </CardContent>
         </Card>
       )}
+
+      {activeSection === 'startseite' && <StartseiteSettings />}
 
       {activeSection === 'team' && isAdmin && <TeamSettings />}
 
@@ -377,7 +396,7 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
         </Card>
       )}
 
-      {activeSection !== 'theme' && activeSection !== 'team' && activeSection !== 'verwaltung' && (
+      {activeSection !== 'theme' && activeSection !== 'team' && activeSection !== 'verwaltung' && activeSection !== 'startseite' && (
         <Button onClick={handleSave} disabled={saving} className="w-full gap-2">
           <Save className="w-4 h-4" />
         {saving ? 'Wird gespeichert...' : 'Einstellungen speichern'}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, Phone, Mail, MapPin, ChevronRight, ArrowLeft, Save, Trash2, UserPlus, StickyNote, Eye, Filter, ShieldCheck } from 'lucide-react';
+import { Search, Plus, Phone, Mail, MapPin, ChevronRight, ArrowLeft, Save, UserPlus, StickyNote, Filter, ShieldCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -130,21 +130,6 @@ export function CustomersView({ isAdmin = false, editCustomerId, onEditCustomer,
     }
   };
 
-  const handleDelete = async () => {
-    if (!formData?.id) return;
-    if (!confirm('Kunde wirklich löschen?')) return;
-    try {
-      await fetch(`/api/customers/${formData.id}`, { method: 'DELETE' });
-      toast.success('Kunde gelöscht');
-      setShowForm(false);
-      setFormData({ firstName: '', lastName: '', street: '', houseNr: '', zip: '', city: '', phone: '', email: '', zone: 1, notes: '' });
-      onEditCustomer(null);
-      fetchCustomers();
-    } catch (e: any) {
-      toast.error('Fehler beim Löschen');
-    }
-  };
-
   if (showForm) {
     return (
       <div className="p-4 space-y-4">
@@ -202,14 +187,6 @@ export function CustomersView({ isAdmin = false, editCustomerId, onEditCustomer,
 
         <div className="flex gap-2">
           <Button onClick={handleSave} className="flex-1 gap-2"><Save className="w-4 h-4" /> Speichern</Button>
-          {formData?.id && onViewCustomerDetail && (
-            <Button variant="outline" size="icon" onClick={() => onViewCustomerDetail(formData.id!)} title="Kundenübersicht">
-              <Eye className="w-4 h-4" />
-            </Button>
-          )}
-          {formData?.id && (
-            <Button variant="destructive" size="icon" onClick={handleDelete}><Trash2 className="w-4 h-4" /></Button>
-          )}
         </div>
       </div>
     );
@@ -287,7 +264,7 @@ export function CustomersView({ isAdmin = false, editCustomerId, onEditCustomer,
               <Card
                 key={c?.id}
                 className="shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => { setFormData(c); setShowForm(true); onEditCustomer(c?.id); }}
+                onClick={() => { if (onViewCustomerDetail && c?.id) onViewCustomerDetail(c.id); }}
               >
                 <CardContent className="p-3 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm shrink-0">

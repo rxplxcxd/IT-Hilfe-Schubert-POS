@@ -78,6 +78,8 @@ model Invoice {
   @@index([status])
   @@index([createdAt])
   @@index([caseNumber])
+  @@index([paidAt])
+  @@index([customerId])
 }
 
 model InvoiceItem {
@@ -90,6 +92,8 @@ model InvoiceItem {
   quantity  Int     @default(1)
   unitPrice Float
   total     Float
+
+  @@index([invoiceId])
 }
 
 model Subscription {
@@ -400,6 +404,9 @@ model AppUser {
   internalNotes    String    @default("") // interne Notizen (nur Admin)
   // ---- Onboarding / Gating ----
   onboardingDone   Boolean   @default(false)
+  // Persoenliche Konfiguration des Start-Hero-Widgets (JSON-String):
+  // { modules: [{ id, enabled }] } in gewuenschter Reihenfolge. Leer = Standard.
+  dashboardConfig  String    @default("")
   approvedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt @default(now())

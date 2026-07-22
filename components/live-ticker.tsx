@@ -2,18 +2,88 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Clock, CalendarDays, Mail, Euro, AlertCircle, FileText, Bell, Users, CloudSun } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
+
+// ---- Modul-Katalog fuer das konfigurierbare Start-Widget (Item 3) ----
+// kind 'core' = Teil des Hero-Kopfs (Uhr/Datum/Ticker), 'chip' = Info-Kachel.
+export const WIDGET_MODULES = [
+  { id: 'clock', label: 'Uhrzeit', kind: 'core' },
+  { id: 'date', label: 'Datum', kind: 'core' },
+  { id: 'ticker', label: 'Info-Ticker', kind: 'core' },
+  { id: 'weather', label: 'Wetter (Malschwitz)', kind: 'chip' },
+  { id: 'appointments', label: 'Termine (anstehend)', kind: 'chip' },
+  { id: 'mails', label: 'Ungelesene Mails', kind: 'chip' },
+  { id: 'revenue', label: 'Umsatz (Monat)', kind: 'chip' },
+  { id: 'openAmount', label: 'Offene Beträge', kind: 'chip' },
+  { id: 'openInvoices', label: 'Offene Rechnungen', kind: 'chip' },
+  { id: 'reminders', label: 'Fällige Erinnerungen', kind: 'chip' },
+  { id: 'customers', label: 'Kundenanzahl', kind: 'chip' },
+] as const;
+
+export type WidgetModuleId = typeof WIDGET_MODULES[number]['id'];
+export interface WidgetConfig { modules: { id: string; enabled: boolean }[] }
+
+// Standard: Uhr, Datum & Ticker an (= bisheriges Verhalten), Kacheln aus.
+export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
+  modules: WIDGET_MODULES.map((m) => ({ id: m.id, enabled: ['clock', 'date', 'ticker'].includes(m.id) })),
+};
+
+export interface WidgetData {
+  customers?: number;
+  openInvoices?: number;
+  upcomingAppointments?: number;
+  pendingReminders?: number;
+  monthlyRevenue?: number;
+  openAmount?: number;
+}
+
+/** Fuegt fehlende (neue) Module am Ende hinzu, damit Alt-Konfigs kompatibel bleiben. */
+function normalizeConfig(config?: WidgetConfig | null): WidgetConfig {
+  const base = config && Array.isArray(config.modules) && config.modules.length > 0 ? config : DEFAULT_WIDGET_CONFIG;
+  const seen = new Set(base.modules.map((m) => m.id));
+  const merged = [...base.modules];
+  for (const m of WIDGET_MODULES) {
+    if (!seen.has(m.id)) merged.push({ id: m.id, enabled: false });
+  }
+  return { modules: merged };
+}
+
+function weatherText(code: number): { icon: string; label: string } {
+  if (code === 0) return { icon: '☀️', label: 'Klar' };
+  if (code <= 2) return { icon: '🌤️', label: 'Leicht bewölkt' };
+  if (code === 3) return { icon: '☁️', label: 'Bewölkt' };
+  if (code <= 48) return { icon: '🌫️', label: 'Nebel' };
+  if (code <= 67) return { icon: '🌧️', label: 'Regen' };
+  if (code <= 77) return { icon: '🌨️', label: 'Schnee' };
+  if (code <= 82) return { icon: '🌦️', label: 'Schauer' };
+  if (code <= 99) return { icon: '⛈️', label: 'Gewitter' };
+  return { icon: '🌡️', label: '—' };
+}
 
 /**
- * Lebendiger Begruessungs-Streifen fuer den Start-Bildschirm.
- * Zeigt eine tageszeitabhaengige Begruessung, eine live tickende Uhr
- * und rotierende, wechselnde Kurz-Infos, damit sich die App aktiv anfuehlt.
- * Vollstaendig client-seitig initialisiert (keine Hydration-Konflikte).
+ * Lebendiger, pro Mitarbeiter konfigurierbarer Begruessungs-Streifen.
+ * Zeigt Begruessung, optional Uhr/Datum/Ticker sowie frei waehlbare
+ * Info-Kacheln (Wetter, Termine, Mails, Umsatz, ...). Vollstaendig
+ * client-seitig initialisiert (keine Hydration-Konflikte).
  */
-export function LiveTicker({ items }: { items?: string[] }) {
+export function LiveTicker({ items, config, data, mailsUnread }: {
+  items?: string[];
+  config?: WidgetConfig | null;
+  data?: WidgetData;
+  mailsUnread?: number;
+}) {
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const [idx, setIdx] = useState(0);
+  const [weather, setWeather] = useState<{ temp: number; code: number } | null>(null);
+
+  const cfg = normalizeConfig(config);
+  const enabled = (id: string) => cfg.modules.find((m) => m.id === id)?.enabled ?? false;
+  const showClock = enabled('clock');
+  const showDate = enabled('date');
+  const showTicker = enabled('ticker');
+  const showWeather = enabled('weather');
 
   useEffect(() => {
     setMounted(true);
@@ -21,6 +91,24 @@ export function LiveTicker({ items }: { items?: string[] }) {
     const clock = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(clock);
   }, []);
+
+  // Wetter nur laden, wenn das Modul aktiv ist (Malschwitz ~51.29 / 14.55).
+  useEffect(() => {
+    if (!mounted || !showWeather) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const base = 'https' + '://api.open-meteo.com/v1/forecast';
+        const url = base + '?latitude=51.29&longitude=14.55&current=temperature_2m,weather_code';
+        const res = await fetch(url);
+        const j = await res.json();
+        if (!cancelled && j?.current) setWeather({ temp: Math.round(j.current.temperature_2m), code: j.current.weather_code });
+      } catch { /* still ignorieren */ }
+    };
+    load();
+    const iv = setInterval(load, 15 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [mounted, showWeather]);
 
   const pool = (items && items.length > 0 ? items : [
     'Alles läuft rund. Schön, dass du da bist.',
@@ -31,13 +119,12 @@ export function LiveTicker({ items }: { items?: string[] }) {
   ]);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !showTicker) return;
     const rot = setInterval(() => setIdx((i) => (i + 1) % pool.length), 5000);
     return () => clearInterval(rot);
-  }, [mounted, pool.length]);
+  }, [mounted, showTicker, pool.length]);
 
   if (!mounted || !now) {
-    // Platzhalter mit gleicher Hoehe, um Layout-Spruenge zu vermeiden.
     return <div className="h-[92px] rounded-2xl shimmer" />;
   }
 
@@ -45,6 +132,38 @@ export function LiveTicker({ items }: { items?: string[] }) {
   const greeting = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 17 ? 'Guten Tag' : h < 22 ? 'Guten Abend' : 'Gute Nacht';
   const dateStr = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
   const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+  // ---- Info-Kacheln in konfigurierter Reihenfolge aufbauen ----
+  const chips: { key: string; icon: any; label: string; value: string }[] = [];
+  for (const m of cfg.modules) {
+    if (!m.enabled) continue;
+    switch (m.id) {
+      case 'weather':
+        chips.push({ key: 'weather', icon: CloudSun, label: weather ? weatherText(weather.code).label : 'Wetter', value: weather ? `${weather.temp}°C ${weatherText(weather.code).icon}` : '…' });
+        break;
+      case 'appointments':
+        chips.push({ key: 'appointments', icon: CalendarDays, label: 'Termine', value: `${data?.upcomingAppointments ?? 0}` });
+        break;
+      case 'mails':
+        chips.push({ key: 'mails', icon: Mail, label: 'Ungelesen', value: mailsUnread == null ? '…' : `${mailsUnread}` });
+        break;
+      case 'revenue':
+        chips.push({ key: 'revenue', icon: Euro, label: 'Umsatz', value: formatCurrency(data?.monthlyRevenue ?? 0) });
+        break;
+      case 'openAmount':
+        chips.push({ key: 'openAmount', icon: AlertCircle, label: 'Offen', value: formatCurrency(data?.openAmount ?? 0) });
+        break;
+      case 'openInvoices':
+        chips.push({ key: 'openInvoices', icon: FileText, label: 'Rechnungen', value: `${data?.openInvoices ?? 0}` });
+        break;
+      case 'reminders':
+        chips.push({ key: 'reminders', icon: Bell, label: 'Erinnerungen', value: `${data?.pendingReminders ?? 0}` });
+        break;
+      case 'customers':
+        chips.push({ key: 'customers', icon: Users, label: 'Kunden', value: `${data?.customers ?? 0}` });
+        break;
+    }
+  }
 
   return (
     <motion.div
@@ -54,7 +173,6 @@ export function LiveTicker({ items }: { items?: string[] }) {
       className="relative overflow-hidden rounded-2xl p-4 text-white shadow-lg"
       style={{ background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 55%, #3b82f6 100%)' }}
     >
-      {/* animierte, weiche Lichtflaechen im Hintergrund */}
       <motion.div
         aria-hidden
         className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/10 blur-2xl"
@@ -76,32 +194,51 @@ export function LiveTicker({ items }: { items?: string[] }) {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
             </span>
             <span>Live</span>
-            <span className="opacity-60">·</span>
-            <span className="capitalize truncate">{dateStr}</span>
+            {showDate && <><span className="opacity-60">·</span><span className="capitalize truncate">{dateStr}</span></>}
           </div>
           <h2 className="mt-1 text-xl font-bold leading-tight">{greeting}</h2>
-          <div className="mt-1 h-5 relative">
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={idx}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.4 }}
-                className="absolute inset-0 text-sm text-blue-50/90 truncate"
-              >
-                {pool[idx]}
-              </motion.p>
-            </AnimatePresence>
-          </div>
+          {showTicker && (
+            <div className="mt-1 h-5 relative">
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={idx}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.4 }}
+                  className="absolute inset-0 text-sm text-blue-50/90 truncate"
+                >
+                  {pool[idx]}
+                </motion.p>
+              </AnimatePresence>
+            </div>
+          )}
         </div>
-        <div className="text-right shrink-0">
-          <div className="font-mono text-2xl font-bold tabular-nums leading-none">{timeStr}</div>
-          <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-blue-100">
-            <Sparkles className="w-3 h-3" /> heute aktiv
+        {showClock && (
+          <div className="text-right shrink-0">
+            <div className="font-mono text-2xl font-bold tabular-nums leading-none">{timeStr}</div>
+            <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-blue-100">
+              <Sparkles className="w-3 h-3" /> heute aktiv
+            </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {/* Konfigurierbare Info-Kacheln */}
+      {chips.length > 0 && (
+        <div className="relative mt-3 flex flex-wrap gap-2">
+          {chips.map((c) => {
+            const Icon = c.icon;
+            return (
+              <div key={c.key} className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 backdrop-blur-sm px-2.5 py-1.5">
+                <Icon className="w-3.5 h-3.5 text-blue-50 shrink-0" />
+                <span className="text-[13px] font-semibold tabular-nums">{c.value}</span>
+                <span className="text-[11px] text-blue-100/80">{c.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </motion.div>
   );
 }

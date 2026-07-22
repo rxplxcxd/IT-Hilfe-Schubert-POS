@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell, Legend, BarChart, Bar,
 } from 'recharts';
 import { TrendingUp, FileText, Users, ShoppingCart, AlertCircle, CheckCircle2, Euro, Bell, BarChart3, Download, Shield, Calendar, XCircle, Activity, Clock, LifeBuoy, UserPlus, FileCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CountUp } from '@/components/count-up';
 import { LiveTicker } from '@/components/live-ticker';
+import type { WidgetConfig } from '@/components/live-ticker';
 import { DbUsageCard } from '@/components/db-usage-card';
 import { toast } from 'sonner';
 
@@ -44,6 +45,38 @@ const PERIODS = [
 ] as const;
 
 const DONUT_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#16a34a', '#ea580c', '#db2777'];
+
+// Zeitfenster fuer den Umsatz-Chart (Item 4)
+const RANGES = [
+  { id: '24h', label: 'Letzte 24 Std.' },
+  { id: '7d', label: '7 Tage' },
+  { id: '14d', label: '14 Tage' },
+  { id: '30d', label: '30 Tage' },
+  { id: '90d', label: '90 Tage' },
+  { id: '180d', label: '6 Monate' },
+  { id: '1yr', label: '1 Jahr' },
+  { id: '2yrs', label: '2 Jahre' },
+] as const;
+
+// Umschaltbare Kennzahlen-Widgets (Item 5)
+const KPIS = [
+  { id: 'services', label: 'Beliebteste Leistungen', chart: 'donut' },
+  { id: 'cashflow', label: 'Einnahmen / Ausgaben', chart: 'bars' },
+  { id: 'status', label: 'Rechnungs-Status', chart: 'donut' },
+  { id: 'customers', label: 'Top Kunden (Umsatz)', chart: 'bar' },
+] as const;
+
+interface AnalyticsData {
+  range: string;
+  revenueSeries: { label: string; revenue: number; count: number }[];
+  incomeExpense: { label: string; einnahmen: number; ausgaben: number }[];
+  topServices: { name: string; value: number }[];
+  invoiceStatus: { name: string; value: number }[];
+  topCustomers: { name: string; value: number }[];
+  summary: { totalRevenue: number; totalExpenses: number; profit: number; paidCount: number };
+}
+// Analytics-Cache pro Zeitfenster (stale-while-revalidate)
+const analyticsCache: Record<string, AnalyticsData> = {};
 
 // Module-level cache: persists across view remounts within the SPA session so the
 // dashboard shows instantly (stale-while-revalidate) instead of blanking + refetching.
@@ -80,6 +113,54 @@ export function DashboardView({ onNavigate, onViewInvoice }: {
   const [showStats, setShowStats] = useState(false);
   const [downloadingReport, setDownloadingReport] = useState(false);
   const [period, setPeriod] = useState<string>(dashboardCache?.period ?? 'monthly');
+  // Item 4/5: Umsatz-Zeitfenster + umschaltbare Kennzahl
+  const [range, setRange] = useState<string>('180d');
+  const [kpi, setKpi] = useState<string>('services');
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(analyticsCache['180d'] ?? null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  const fetchAnalytics = useCallback(async (r: string) => {
+    // Sofort aus Cache anzeigen, im Hintergrund neu laden.
+    if (analyticsCache[r]) setAnalytics(analyticsCache[r]);
+    else setAnalyticsLoading(true);
+    try {
+      const res = await fetch(`/api/analytics?range=${r}`);
+      const data = await res.json();
+      if (data && !data.error) {
+        analyticsCache[r] = data;
+        setAnalytics(data);
+      }
+    } catch (e) {
+      console.error('Analytics fetch error:', e);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchAnalytics(range); }, [range, fetchAnalytics]);
+
+  // Item 3: persoenliche Start-Widget-Konfiguration + optional Mail-Zaehler laden
+  const [widgetConfig, setWidgetConfig] = useState<WidgetConfig | null>(null);
+  const [mailsUnread, setMailsUnread] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/profile/widget');
+        const j = await res.json();
+        if (active) setWidgetConfig(j?.config ?? null);
+        const mailsEnabled = (j?.config?.modules || []).some((m: any) => m.id === 'mails' && m.enabled);
+        if (mailsEnabled) {
+          try {
+            const mr = await fetch('/api/gmail/unread-count');
+            const mj = await mr.json();
+            if (active) setMailsUnread(mj?.count ?? 0);
+          } catch { if (active) setMailsUnread(0); }
+        }
+      } catch { /* Standard-Widget verwenden */ }
+    })();
+    return () => { active = false; };
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -179,8 +260,16 @@ export function DashboardView({ onNavigate, onViewInvoice }: {
     { label: 'Schutzbrief aktiv', raw: stats?.summary?.activeSubscriptions ?? 0, currency: false, icon: Shield, color: 'text-purple-600 bg-purple-50 dark:bg-purple-950 dark:text-purple-400', ring: 'from-purple-500/10' },
   ];
 
-  const chartData = (stats?.monthlyData || []).map((m) => ({ month: m.month, Umsatz: Math.round(m.revenue), Rechnungen: m.count }));
-  const donutData = (stats?.topServices || []).slice(0, 6).map((s) => ({ name: s.name, value: Math.round(s.revenue) }));
+  // Item 4: Umsatz-Zeitreihe aus Analytics (Zeitfenster umschaltbar)
+  const revChart = (analytics?.revenueSeries || []).map((r) => ({ label: r.label, Umsatz: r.revenue }));
+  const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? '';
+  // Item 5: umschaltbare Kennzahl
+  const kpiDef = KPIS.find((k) => k.id === kpi) ?? KPIS[0];
+  const kpiDonut = kpi === 'services' ? (analytics?.topServices ?? [])
+    : kpi === 'status' ? (analytics?.invoiceStatus ?? [])
+    : [];
+  const kpiBars = kpi === 'customers' ? (analytics?.topCustomers ?? []) : [];
+  const kpiCashflow = analytics?.incomeExpense ?? [];
 
   // Aktivitäts-Feed: kommende/neue Termine + offene Rechnungen, chronologisch
   const now = Date.now();
@@ -201,13 +290,25 @@ export function DashboardView({ onNavigate, onViewInvoice }: {
     <motion.div variants={container} initial="hidden" animate="show" className="p-4 space-y-4 pb-8">
       {/* Lebendiger Begruessungs-Streifen */}
       <motion.div variants={item}>
-        <LiveTicker items={[
-          data ? `${data.totalCustomers ?? 0} Kunden im System.` : 'Willkommen zurück.',
-          (stats?.summary?.openInvoices ?? 0) > 0 ? `${stats?.summary?.openInvoices} offene Rechnung(en) warten.` : 'Keine offenen Rechnungen. Stark.',
-          upcoming.length > 0 ? `${upcoming.length} Termin(e) stehen an.` : 'Aktuell keine anstehenden Termine.',
-          (stats?.summary?.pendingReminders ?? 0) > 0 ? `${stats?.summary?.pendingReminders} Erinnerung(en) fällig.` : 'Alle Erinnerungen erledigt.',
-          'Fristen im Blick behalten, dann bleibt alles entspannt.',
-        ]} />
+        <LiveTicker
+          config={widgetConfig}
+          mailsUnread={mailsUnread}
+          data={{
+            customers: data?.totalCustomers ?? 0,
+            openInvoices: stats?.summary?.openInvoices ?? 0,
+            upcomingAppointments: upcoming.length,
+            pendingReminders: stats?.summary?.pendingReminders ?? 0,
+            monthlyRevenue: data?.monthlyRevenue ?? 0,
+            openAmount: stats?.summary?.openAmount ?? 0,
+          }}
+          items={[
+            data ? `${data.totalCustomers ?? 0} Kunden im System.` : 'Willkommen zurück.',
+            (stats?.summary?.openInvoices ?? 0) > 0 ? `${stats?.summary?.openInvoices} offene Rechnung(en) warten.` : 'Keine offenen Rechnungen. Stark.',
+            upcoming.length > 0 ? `${upcoming.length} Termin(e) stehen an.` : 'Aktuell keine anstehenden Termine.',
+            (stats?.summary?.pendingReminders ?? 0) > 0 ? `${stats?.summary?.pendingReminders} Erinnerung(en) fällig.` : 'Alle Erinnerungen erledigt.',
+            'Fristen im Blick behalten, dann bleibt alles entspannt.',
+          ]}
+        />
       </motion.div>
 
       {/* Datenbank-Speicher (nur Admins) */}
@@ -271,15 +372,24 @@ export function DashboardView({ onNavigate, onViewInvoice }: {
       <motion.div variants={item}>
         <Card className="shadow-sm">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold flex items-center gap-1"><TrendingUp className="w-4 h-4 text-primary" /> Umsatz (6 Monate)</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold flex items-center gap-1"><TrendingUp className="w-4 h-4 text-primary" /> Umsatz</h3>
               <Button variant="ghost" size="sm" className="text-xs gap-1 press-scale" onClick={handleDownloadReport} disabled={downloadingReport}>
                 <Download className="w-3 h-3" />{downloadingReport ? '...' : 'Bericht'}
               </Button>
             </div>
-            <div className="h-48 w-full">
+            <select
+              value={range}
+              onChange={(e) => setRange(e.target.value)}
+              className="w-full mb-3 h-9 px-3 text-sm border border-input rounded-md bg-background"
+              aria-label="Zeitfenster"
+            >
+              {RANGES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
+            <div className="h-48 w-full relative">
+              {analyticsLoading && !analytics && <div className="absolute inset-0 rounded-xl shimmer" />}
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+                <AreaChart data={revChart} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#2563eb" stopOpacity={0.35} />
@@ -287,41 +397,80 @@ export function DashboardView({ onNavigate, onViewInvoice }: {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="month" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={48} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={48} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`} />
                   <Tooltip
                     formatter={(v: any) => [formatCurrency(Number(v)), 'Umsatz']}
                     contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.08)' }}
                   />
-                  <Area type="monotone" dataKey="Umsatz" stroke="#2563eb" strokeWidth={2.5} fill="url(#revGrad)" animationDuration={900} />
+                  <Area type="monotone" dataKey="Umsatz" stroke="#2563eb" strokeWidth={2.5} fill="url(#revGrad)" animationDuration={700} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+            <p className="text-[10px] text-muted-foreground mt-1 text-center">{rangeLabel} · {formatCurrency(analytics?.summary?.totalRevenue ?? 0)} Umsatz</p>
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Top Services Donut */}
-      {donutData.length > 0 && (
-        <motion.div variants={item}>
-          <Card className="shadow-sm">
-            <CardContent className="p-4">
-              <h3 className="text-sm font-semibold flex items-center gap-1 mb-2"><BarChart3 className="w-4 h-4 text-primary" /> Beliebteste Leistungen</h3>
-              <div className="h-52 w-full">
+      {/* Kennzahlen-Widget mit Umschalter (Item 5) */}
+      <motion.div variants={item}>
+        <Card className="shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-1 mb-2">
+              <BarChart3 className="w-4 h-4 text-primary shrink-0" />
+              <h3 className="text-sm font-semibold flex-1">{kpiDef.label}</h3>
+            </div>
+            <select value={kpi} onChange={(e) => setKpi(e.target.value)} className="w-full mb-3 h-9 px-3 text-sm border border-input rounded-md bg-background" aria-label="Kennzahl">
+              {KPIS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
+            </select>
+            <div className="h-52 w-full relative">
+              {analyticsLoading && !analytics && <div className="absolute inset-0 rounded-xl shimmer" />}
+              {kpiDef.chart === 'donut' && kpiDonut.length > 0 && (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={donutData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3} animationDuration={900}>
-                      {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
+                    <Pie data={kpiDonut} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3} animationDuration={700}>
+                      {kpiDonut.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
                     </Pie>
-                    <Tooltip formatter={(v: any, n: any) => [formatCurrency(Number(v)), n]} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                    <Tooltip formatter={(v: any, n: any) => [kpi === 'status' ? `${v}` : formatCurrency(Number(v)), n]} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
                     <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
                   </PieChart>
                 </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+              )}
+              {kpiDef.chart === 'bars' && kpiCashflow.length > 0 && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={kpiCashflow} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} />
+                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={48} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`} />
+                    <Tooltip formatter={(v: any, n: any) => [formatCurrency(Number(v)), n === 'einnahmen' ? 'Einnahmen' : 'Ausgaben']} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" formatter={(v) => v === 'einnahmen' ? 'Einnahmen' : 'Ausgaben'} />
+                    <Bar dataKey="einnahmen" fill="#16a34a" radius={[3, 3, 0, 0]} animationDuration={700} />
+                    <Bar dataKey="ausgaben" fill="#dc2626" radius={[3, 3, 0, 0]} animationDuration={700} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              {kpiDef.chart === 'bar' && kpiBars.length > 0 && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={kpiBars} layout="vertical" margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={90} />
+                    <Tooltip formatter={(v: any) => [formatCurrency(Number(v)), 'Umsatz']} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                    <Bar dataKey="value" fill="#2563eb" radius={[0, 3, 3, 0]} animationDuration={700} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              {((kpiDef.chart === 'donut' && kpiDonut.length === 0) || (kpiDef.chart === 'bars' && kpiCashflow.every((c) => !c.einnahmen && !c.ausgaben)) || (kpiDef.chart === 'bar' && kpiBars.length === 0)) && !analyticsLoading && (
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                  <BarChart3 className="w-8 h-8 mb-2 opacity-40" />
+                  <p className="text-xs">Keine Daten im Zeitfenster</p>
+                </div>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1 text-center">Zeitfenster: {rangeLabel}</p>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Aktivitäts-Feed */}
       <motion.div variants={item}>

@@ -207,6 +207,8 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
             onBack={() => goBack()}
             onWriteEmail={(email) => { pushHistory(); setComposeEmailTo(email); setActiveTab('email' as TabId); setViewCustomerDetailId(null); }}
             onViewInvoice={(id) => { pushHistory(); setViewInvoiceId(id); setActiveTab('belege' as TabId); setViewCustomerDetailId(null); }}
+            onEdit={(id) => { pushHistory(); setViewCustomerDetailId(null); setEditCustomerId(id); }}
+            onDeleted={() => { goBack(); refresh(); }}
           />
         </main>
       </div>

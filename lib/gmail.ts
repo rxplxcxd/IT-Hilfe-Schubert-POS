@@ -1,5 +1,36 @@
 import { google } from 'googleapis';
+import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
+
+/**
+ * Ermittelt den absoluten Origin (Protokoll + Host) der App.
+ *
+ * WICHTIG fuer OAuth: Google verlangt eine ABSOLUTE redirect_uri. Frueher
+ * wurde nur NEXT_PUBLIC_APP_URL benutzt - war die Variable leer, entstand der
+ * relative Pfad "/api/gmail/callback", was Google mit "invalid_request"
+ * ablehnt. Wir leiten den Origin daher primaer aus den Request-Headern ab
+ * (funktioniert auf Vercel hinter dem Proxy zuverlaessig) und fallen nur
+ * ersatzweise auf die ENV-Variablen zurueck.
+ */
+function originFromHeaders(): string {
+  try {
+    const h = headers();
+    const host = h.get('x-forwarded-host') || h.get('host') || '';
+    if (!host) return '';
+    const proto = h.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+    return proto + '://' + host;
+  } catch {
+    return '';
+  }
+}
+
+/** Absoluter App-Origin ohne abschliessenden Slash. */
+export function getAppOrigin(): string {
+  const fromHeaders = originFromHeaders().replace(/\/$/, '');
+  if (fromHeaders) return fromHeaders;
+  const envUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || '').replace(/\/$/, '');
+  return envUrl;
+}
 
 /**
  * Zentrale Helfer fuer die pro-Mitarbeiter Gmail-Anbindung.
@@ -26,7 +57,7 @@ export async function getOAuthCreds(): Promise<OAuthCreds | null> {
     clientSecret = clientSecret || settings?.googleClientSecret || '';
   }
   if (!clientId || !clientSecret) return null;
-  const base = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
+  const base = getAppOrigin();
   const redirectUri = base + '/api/gmail/callback';
   return { clientId, clientSecret, redirectUri };
 }

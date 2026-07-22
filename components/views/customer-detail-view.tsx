@@ -14,9 +14,14 @@ interface CustomerDetailProps {
   onBack: () => void;
   onWriteEmail: (email: string) => void;
   onViewInvoice: (id: number) => void;
+  onEdit?: (id: number) => void;
+  onDeleted?: () => void;
 }
 
-export function CustomerDetailView({ customerId, onBack, onWriteEmail, onViewInvoice }: CustomerDetailProps) {
+export function CustomerDetailView({ customerId, onBack, onWriteEmail, onViewInvoice, onEdit, onDeleted }: CustomerDetailProps) {
+  // Zweistufige Loesch-Bestaetigung zur Sicherheit.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [customer, setCustomer] = useState<any>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [workLogs, setWorkLogs] = useState<any[]>([]);
@@ -157,6 +162,21 @@ export function CustomerDetailView({ customerId, onBack, onWriteEmail, onViewInv
       toast.success('Gelöscht');
       fetchAll();
     } catch { toast.error('Fehler'); }
+  };
+
+  const handleDeleteCustomer = async () => {
+    // Zweite (finale) Bestaetigung.
+    if (!confirm(`Kunde "${customer?.firstName ?? ''} ${customer?.lastName ?? ''}" wird endgültig gelöscht. Fortfahren?`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/customers/${customerId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      toast.success('Kunde gelöscht');
+      if (onDeleted) onDeleted(); else onBack();
+    } catch {
+      toast.error('Fehler beim Löschen');
+      setDeleting(false);
+    }
   };
 
   const handleSendReview = async () => {
@@ -414,6 +434,33 @@ export function CustomerDetailView({ customerId, onBack, onWriteEmail, onViewInv
           ))}
         </div>
       )}
+
+      {/* Aktionen: Bearbeiten / Löschen (zweistufige Bestätigung) */}
+      <div className="pt-4 mt-2 border-t border-border">
+        {!confirmDelete ? (
+          <div className="flex gap-2">
+            {onEdit && (
+              <Button variant="outline" className="flex-1 gap-2" onClick={() => onEdit(customerId)}>
+                <Pencil className="w-4 h-4" /> Bearbeiten
+              </Button>
+            )}
+            <Button variant="destructive" className="flex-1 gap-2" onClick={() => setConfirmDelete(true)}>
+              <Trash2 className="w-4 h-4" /> Löschen
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-3 space-y-3">
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">Diesen Kunden wirklich löschen?</p>
+            <p className="text-xs text-red-700 dark:text-red-400">Alle zugehörigen Daten (Protokolle, Geräte, Erinnerungen) gehen dabei verloren. Zur Sicherheit folgt noch eine zweite Abfrage.</p>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmDelete(false)} disabled={deleting}>Abbrechen</Button>
+              <Button variant="destructive" className="flex-1 gap-2" onClick={handleDeleteCustomer} loading={deleting}>
+                <Trash2 className="w-4 h-4" /> Endgültig löschen
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

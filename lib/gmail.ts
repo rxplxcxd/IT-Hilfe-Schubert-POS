@@ -67,17 +67,26 @@ export function getGmailRedirectUri(): string {
 
 /** Laedt Client-ID/Secret aus ENV, faellt auf die Settings-Tabelle zurueck. */
 export async function getOAuthCreds(): Promise<OAuthCreds | null> {
-  let clientId = process.env.GOOGLE_GMAIL_CLIENT_ID;
-  let clientSecret = process.env.GOOGLE_GMAIL_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-    clientId = clientId || settings?.googleClientId || '';
-    clientSecret = clientSecret || settings?.googleClientSecret || '';
+  // WICHTIG: Client-ID und Secret MUESSEN immer als PAAR aus derselben Quelle
+  // stammen. Frueher wurde die ID aus der Umgebungsvariable und das Secret aus
+  // den App-Einstellungen gemischt -> Google lehnt das mit invalid_client ab.
+  // Reihenfolge: Erst die in der App gespeicherten Einstellungen (die der Nutzer
+  // steuert), nur als Fallback die Umgebungsvariablen.
+  const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+  const dbId = (settings?.googleClientId || '').trim();
+  const dbSecret = (settings?.googleClientSecret || '').trim();
+  const envId = (process.env.GOOGLE_GMAIL_CLIENT_ID || '').trim();
+  const envSecret = (process.env.GOOGLE_GMAIL_CLIENT_SECRET || '').trim();
+
+  let clientId = '';
+  let clientSecret = '';
+  if (dbId && dbSecret) {
+    clientId = dbId;
+    clientSecret = dbSecret;
+  } else if (envId && envSecret) {
+    clientId = envId;
+    clientSecret = envSecret;
   }
-  // iPhone-Copy-Paste haengt oft unsichtbare Leerzeichen/Zeilenumbrueche an,
-  // was Google mit invalid_client quittiert. Deshalb sauber trimmen.
-  clientId = (clientId || '').trim();
-  clientSecret = (clientSecret || '').trim();
   if (!clientId || !clientSecret) return null;
   const redirectUri = getGmailRedirectUri();
   return { clientId, clientSecret, redirectUri };

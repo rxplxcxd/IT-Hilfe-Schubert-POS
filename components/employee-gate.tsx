@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, CheckCircle2, Circle, Mail, ShieldCheck } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Loader2, CheckCircle2, Circle, Mail, ShieldCheck, LogOut } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -95,6 +97,16 @@ function ProfileSetup({ status, onComplete }: { status: ProfileStatus; onComplet
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch {}
+    router.replace('/login');
+    router.refresh();
+  };
 
   // Vorhandene Kontaktdaten laden, damit der Mitarbeiter nur Luecken fuellt.
   useEffect(() => {
@@ -161,9 +173,18 @@ function ProfileSetup({ status, onComplete }: { status: ProfileStatus; onComplet
     <div className="fixed inset-0 z-[150] overflow-y-auto bg-background">
       <div className="min-h-full flex items-start sm:items-center justify-center p-4">
         <div className="w-full max-w-md bg-card text-card-foreground rounded-2xl shadow-xl border border-border p-5 my-4">
-          <div className="flex items-center gap-2 mb-1">
-            <ShieldCheck className="w-5 h-5 text-primary" />
-            <h1 className="font-display text-lg font-bold">Kritische Profildaten vervollständigen</h1>
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
+              <h1 className="font-display text-lg font-bold">Kritische Profildaten vervollständigen</h1>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 shrink-0 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Abmelden"
+            >
+              <LogOut className="w-4 h-4" /><span className="hidden sm:inline">Abmelden</span>
+            </button>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
             Bevor es losgeht, brauchen wir noch ein paar Angaben von dir. Erst danach schaltet sich die App komplett frei.

@@ -21,21 +21,13 @@ import { CustomerDetailView } from './views/customer-detail-view';
 import { BelegeHubView } from './views/belege-hub-view';
 import { AppointmentsView } from './views/appointments-view';
 import { TicketsView } from './views/tickets-view';
+import { NAV_TABS } from '@/lib/nav-config';
+import { EmployeeGate } from './employee-gate';
 
-const tabs = [
-  { id: 'dashboard', label: 'Start', icon: LayoutDashboard },
-  { id: 'customers', label: 'Kunden', icon: Users },
-  { id: 'booking', label: 'Buchung', icon: ShoppingCart },
-  { id: 'belege', label: 'Belege', icon: ClipboardList },
-  { id: 'tickets', label: 'Tickets', icon: LifeBuoy },
-  { id: 'email', label: 'E-Mail', icon: Mail },
-  { id: 'finances', label: 'Finanzen', icon: Wallet },
-  { id: 'products', label: 'Produkte', icon: Package },
-  { id: 'appointments', label: 'Termine', icon: CalendarDays },
-  { id: 'settings', label: 'Einstellungen', icon: Settings },
-] as const;
+// Einzige Quelle der Wahrheit fuer die Tabs -> siehe lib/nav-config.tsx
+const tabs = NAV_TABS;
 
-type TabId = typeof tabs[number]['id'];
+type TabId = string;
 
 /** Rote iPhone-artige Badge (Punkt oder Zahl). */
 function CountBadge({ count, ring = 'ring-card', className = '' }: { count: number; ring?: string; className?: string }) {
@@ -51,7 +43,9 @@ export function AppShell({ isAdmin = false, employeeNo = null }: { isAdmin?: boo
   return (
     <NotificationProvider>
       <VersionWatcher />
-      <AppShellInner isAdmin={isAdmin} employeeNo={employeeNo} />
+      <EmployeeGate isAdmin={isAdmin}>
+        <AppShellInner isAdmin={isAdmin} employeeNo={employeeNo} />
+      </EmployeeGate>
     </NotificationProvider>
   );
 }
@@ -237,7 +231,7 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
             const isActive = activeTab === tab.id;
             const badge = badgeForTab(tab.id);
             return (
-              <button key={tab.id} onClick={() => navigateTo(tab.id)}
+              <button key={tab.id} data-tour={`tab-${tab.id}`} onClick={() => navigateTo(tab.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${isActive ? 'bg-primary/10 text-primary font-semibold' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                 <Icon className="w-[18px] h-[18px] shrink-0" />
                 <span className="flex-1 text-left">{tab.label}</span>
@@ -372,7 +366,7 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
               const isActive = activeTab === tab.id;
               const badge = badgeForTab(tab.id);
               return (
-                <button key={tab.id} onClick={() => { navigateTo(tab.id); }}
+                <button key={tab.id} data-tour={`tab-${tab.id}`} onClick={() => { navigateTo(tab.id); }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${isActive ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-muted'}`}>
                   <Icon className="w-4 h-4" /><span className="flex-1 text-left">{tab.label}</span>
                   {badge > 0 && <CountBadge count={badge} ring="ring-card" />}
@@ -389,14 +383,14 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
-              <button key={tab.id} onClick={() => { navigateTo(tab.id); }}
+              <button key={tab.id} data-tour={`tab-${tab.id}`} onClick={() => { navigateTo(tab.id); }}
                 className={`relative flex-1 flex flex-col items-center py-2 gap-0.5 press-scale transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
                 {isActive && <motion.span layoutId="navIndicator" className="absolute top-0 h-0.5 w-8 rounded-full bg-primary" transition={{ type: 'spring', stiffness: 500, damping: 32 }} />}
                 <Icon className="w-5 h-5" /><span className="text-[10px] font-medium">{tab.label}</span>
               </button>
             );
           })}
-          <button onClick={() => setShowMore(!showMore)}
+          <button data-tour="more" onClick={() => setShowMore(!showMore)}
             className={`relative flex-1 flex flex-col items-center py-2 gap-0.5 transition-colors ${isMoreActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
             {total > 0 && <span className="absolute top-1.5 right-[calc(50%-18px)]"><CountBadge count={total} ring="ring-card" /></span>}
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

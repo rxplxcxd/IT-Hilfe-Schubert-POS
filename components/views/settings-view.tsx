@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Save, Upload, Building2, CreditCard, Mail, FileText, Image as ImageIcon, CheckCircle2, Globe, Sun, Moon, Monitor, ClipboardList, MapPin, Users } from 'lucide-react';
+import { Save, Upload, Building2, CreditCard, Mail, FileText, Image as ImageIcon, CheckCircle2, Globe, Sun, Moon, Monitor, ClipboardList, MapPin, Users, ShieldCheck } from 'lucide-react';
 import { TeamSettings } from './team-settings';
+import { EmployeeManagement } from './employee-management';
 import { useTheme } from 'next-themes';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -136,6 +137,7 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
       { id: 'bank', label: 'Bank', icon: CreditCard },
       { id: 'gmail', label: 'Gmail', icon: Globe },
       { id: 'team', label: 'Team', icon: Users },
+      { id: 'verwaltung', label: 'Verwaltung', icon: ShieldCheck },
     ] : []),
     { id: 'theme', label: 'Design', icon: Sun },
   ];
@@ -333,6 +335,8 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
 
       {activeSection === 'team' && isAdmin && <TeamSettings />}
 
+      {activeSection === 'verwaltung' && isAdmin && <EmployeeManagement />}
+
       {activeSection === 'theme' && (
         <Card className="shadow-sm">
           <CardContent className="p-4 space-y-4">
@@ -373,7 +377,7 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
         </Card>
       )}
 
-      {activeSection !== 'theme' && activeSection !== 'team' && (
+      {activeSection !== 'theme' && activeSection !== 'team' && activeSection !== 'verwaltung' && (
         <Button onClick={handleSave} disabled={saving} className="w-full gap-2">
           <Save className="w-4 h-4" />
         {saving ? 'Wird gespeichert...' : 'Einstellungen speichern'}

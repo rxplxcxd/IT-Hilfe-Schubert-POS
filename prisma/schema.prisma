@@ -386,11 +386,41 @@ model AppUser {
   // Lokaler Teil der Firmen-E-Mail-Adresse dieses Mitarbeiters, z.B. "leon"
   // -> ergibt zusammen mit Settings.mailDomain "leon@ithilfeschubert.xyz".
   emailPrefix   String @default("")
+  // ---- Erweiterte Personaldaten (Mitarbeiterverwaltungszentrale) ----
+  position         String    @default("") // Funktion/Rolle im Betrieb
+  personalEmail    String    @default("") // private E-Mail
+  birthDate        DateTime?
+  startDate        DateTime?              // Eintrittsdatum
+  emergencyContact String    @default("") // Notfallkontakt Name
+  emergencyPhone   String    @default("") // Notfallkontakt Telefon
+  iban             String    @default("") // fuer Lohn
+  taxId            String    @default("") // Steuer-ID
+  socialSecurityNo String    @default("") // Sozialversicherungsnummer
+  healthInsurance  String    @default("") // Krankenkasse
+  internalNotes    String    @default("") // interne Notizen (nur Admin)
+  // ---- Onboarding / Gating ----
+  onboardingDone   Boolean   @default(false)
   approvedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt @default(now())
+  documents  EmployeeDocument[]
 
   @@index([status])
+}
+
+model EmployeeDocument {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   String   @default("SONSTIGES") // VERTRAG, VERSICHERUNG, AUSWEIS, ZEUGNIS, SONSTIGES
+  fileName   String
+  filePath   String   @default("") // cloud_storage_path (privat)
+  isPublic   Boolean  @default(false)
+  mimeType   String   @default("")
+  size       Int      @default(0)
+  uploadedAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Ticket {

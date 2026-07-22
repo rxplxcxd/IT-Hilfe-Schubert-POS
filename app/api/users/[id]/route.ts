@@ -109,6 +109,38 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       return NextResponse.json(updated);
     }
 
+    if (action === 'profile') {
+      // Vollstaendige Personaldaten-Aktualisierung aus der
+      // Mitarbeiterverwaltungszentrale (nur Admin).
+      const s = (v: any) => (typeof v === 'string' ? v.trim() : v == null ? '' : String(v));
+      const parseDate = (v: any): Date | null => {
+        if (!v || typeof v !== 'string' || !v.trim()) return null;
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d;
+      };
+      const data: any = {};
+      // Kontakt-/Basisdaten
+      if (body.name !== undefined) data.name = s(body.name);
+      if (body.contactStreet !== undefined) data.contactStreet = s(body.contactStreet);
+      if (body.contactZip !== undefined) data.contactZip = s(body.contactZip);
+      if (body.contactCity !== undefined) data.contactCity = s(body.contactCity);
+      if (body.contactPhone !== undefined) data.contactPhone = s(body.contactPhone);
+      // Erweiterte Personaldaten
+      if (body.position !== undefined) data.position = s(body.position);
+      if (body.personalEmail !== undefined) data.personalEmail = s(body.personalEmail);
+      if (body.birthDate !== undefined) data.birthDate = parseDate(body.birthDate);
+      if (body.startDate !== undefined) data.startDate = parseDate(body.startDate);
+      if (body.emergencyContact !== undefined) data.emergencyContact = s(body.emergencyContact);
+      if (body.emergencyPhone !== undefined) data.emergencyPhone = s(body.emergencyPhone);
+      if (body.iban !== undefined) data.iban = s(body.iban);
+      if (body.taxId !== undefined) data.taxId = s(body.taxId);
+      if (body.socialSecurityNo !== undefined) data.socialSecurityNo = s(body.socialSecurityNo);
+      if (body.healthInsurance !== undefined) data.healthInsurance = s(body.healthInsurance);
+      if (body.internalNotes !== undefined) data.internalNotes = s(body.internalNotes);
+      const updated = await prisma.appUser.update({ where: { id }, data });
+      return NextResponse.json(updated);
+    }
+
     return NextResponse.json({ error: 'Unbekannte Aktion' }, { status: 400 });
   } catch (error: any) {
     console.error('users PATCH:', error?.message);

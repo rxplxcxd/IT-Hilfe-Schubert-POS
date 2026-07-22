@@ -176,7 +176,14 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
           not_configured: 'Google-Zugangsdaten fehlen in den Einstellungen.',
           auth_failed: 'Verbindung fehlgeschlagen.',
         };
-        toast.error('Gmail-Verbindung fehlgeschlagen', { description: map[err] || decodeURIComponent(err), duration: 9000 });
+        const decoded = decodeURIComponent(err);
+        let description = map[err] || decoded;
+        if (decoded.includes('invalid_client')) {
+          description = 'Client-ID oder Client-Secret stimmen nicht mit Google überein. Öffne Einstellungen → Gmail und gib beide Werte NEU ein (Secret komplett neu eintippen, nicht die Sterne stehen lassen). Prüfe auch, dass das Secret aktuell ist und nicht in Google zurückgesetzt wurde.';
+        } else if (decoded.includes('redirect_uri_mismatch')) {
+          description = 'Die Redirect-URI ist in Google nicht eingetragen. Kopiere die in Einstellungen → Gmail angezeigte URI exakt in die Google Cloud Console.';
+        }
+        toast.error('Gmail-Verbindung fehlgeschlagen', { description, duration: 12000 });
       }
       if (ok || err) {
         const u = new URL(window.location.href);

@@ -94,6 +94,19 @@ export async function PUT(request: Request) {
     const isAdmin = access.role === 'ADMIN';
     const data = await request.json();
 
+    // Google-Zugangsdaten von Copy-Paste-Muell (Leerzeichen, Zeilenumbrueche,
+    // Anfuehrungszeichen) befreien - sonst lehnt Google mit "invalid_client" ab.
+    const cleanCred = (v: any) => typeof v === 'string'
+      ? v.replace(/[\s]+/g, '').replace(/^["'„“”<]+/, '').replace(/["'„“”>]+$/, '')
+      : v;
+    if (data && typeof data === 'object') {
+      if (typeof data.googleClientId === 'string') data.googleClientId = cleanCred(data.googleClientId);
+      // Das maskierte Secret (••••) NICHT anfassen - das wuerde den echten Wert zerstoeren.
+      if (typeof data.googleClientSecret === 'string' && !data.googleClientSecret.includes('•')) {
+        data.googleClientSecret = cleanCred(data.googleClientSecret);
+      }
+    }
+
     // Mitarbeiter duerfen NUR ihre eigenen Kontaktdaten aendern.
     if (!isAdmin) {
       await prisma.appUser.update({

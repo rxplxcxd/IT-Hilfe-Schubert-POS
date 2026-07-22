@@ -65,6 +65,24 @@ export function getGmailRedirectUri(): string {
   return base + '/api/gmail/callback';
 }
 
+/**
+ * Bereinigt eine per Copy-Paste eingegebene Zugangsdaten-Zeichenkette.
+ *
+ * Auf dem iPhone werden beim Kopieren aus JSON/Browser haeufig unsichtbare
+ * Zeichen mitkopiert: fuehrende/abschliessende Leerzeichen, Zeilenumbüche,
+ * geschweifte/eckige Anfuehrungszeichen („ “), gerade Anfuehrungszeichen oder
+ * spitze Klammern (< >). Google vergleicht Client-ID/Secret ZEICHENGENAU und
+ * lehnt jede Abweichung mit "invalid_client" ab. Client-IDs und Secrets
+ * enthalten selbst NIE Leerzeichen, daher entfernen wir jeglichen Whitespace
+ * gefahrlos komplett.
+ */
+function cleanCred(v: string | null | undefined): string {
+  return (v || '')
+    .replace(/[\s]+/g, '')          // alle Leerzeichen/Zeilenumbrueche raus
+    .replace(/^["'„“”<\s]+/, '')   // fuehrende Anfuehrungszeichen/Klammern
+    .replace(/["'„“”>\s]+$/, '');    // abschliessende Anfuehrungszeichen/Klammern
+}
+
 /** Laedt Client-ID/Secret aus ENV, faellt auf die Settings-Tabelle zurueck. */
 export async function getOAuthCreds(): Promise<OAuthCreds | null> {
   // WICHTIG: Client-ID und Secret MUESSEN immer als PAAR aus derselben Quelle
@@ -73,10 +91,10 @@ export async function getOAuthCreds(): Promise<OAuthCreds | null> {
   // Reihenfolge: Erst die in der App gespeicherten Einstellungen (die der Nutzer
   // steuert), nur als Fallback die Umgebungsvariablen.
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-  const dbId = (settings?.googleClientId || '').trim();
-  const dbSecret = (settings?.googleClientSecret || '').trim();
-  const envId = (process.env.GOOGLE_GMAIL_CLIENT_ID || '').trim();
-  const envSecret = (process.env.GOOGLE_GMAIL_CLIENT_SECRET || '').trim();
+  const dbId = cleanCred(settings?.googleClientId);
+  const dbSecret = cleanCred(settings?.googleClientSecret);
+  const envId = cleanCred(process.env.GOOGLE_GMAIL_CLIENT_ID);
+  const envSecret = cleanCred(process.env.GOOGLE_GMAIL_CLIENT_SECRET);
 
   let clientId = '';
   let clientSecret = '';

@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { isCurrentUserAdmin } from '@/lib/access';
 import { sendEmail } from '@/lib/email';
 import { accessApprovedHtml } from '@/lib/email-templates';
+import { encryptUser, decryptUser } from '@/lib/crypto';
+import { logAudit } from '@/lib/audit';
 
 // GET: Detail eines Mitarbeiters inkl. seiner Kunden und Kennzahlen (nur Admin)
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
@@ -44,7 +46,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       revenue: paidAgg._sum.total || 0,
     };
 
-    return NextResponse.json({ user, customers, stats });
+    return NextResponse.json({ user: decryptUser(user), customers, stats });
   } catch (error: any) {
     console.error('users GET detail:', error?.message);
     return NextResponse.json({ error: error?.message }, { status: 500 });
@@ -80,6 +82,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       } catch (e: any) {
         console.error('approve email:', e?.message);
       }
+      await logAudit({ action: 'APPROVE', entity: 'USER', entityId: id, summary: `${updated.name || updated.email} freigeschaltet` });
       return NextResponse.json(updated);
     }
 
@@ -88,12 +91,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         where: { id },
         data: { status: 'REJECTED', approvedAt: null },
       });
+      await logAudit({ action: 'REJECT', entity: 'USER', entityId: id, summary: `${updated.name || updated.email} abgelehnt` });
       return NextResponse.json(updated);
     }
 
     if (action === 'role') {
       const role = body?.role === 'ADMIN' ? 'ADMIN' : 'EMPLOYEE';
       const updated = await prisma.appUser.update({ where: { id }, data: { role } });
+      await logAudit({ action: 'ROLE', entity: 'USER', entityId: id, summary: `Rolle von ${updated.name || updated.email} auf ${role} gesetzt` });
       return NextResponse.json(updated);
     }
 
@@ -106,6 +111,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         where: { id },
         data: { emailPrefix: clean } as any,
       });
+      await logAudit({ action: 'PREFIX', entity: 'USER', entityId: id, summary: `Firmen-E-Mail-Prefix von ${updated.name || updated.email} auf "${clean}" gesetzt` });
       return NextResponse.json(updated);
     }
 
@@ -118,6 +124,12 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         const d = new Date(v);
         return isNaN(d.getTime()) ? null : d;
       };
+      const num = (v: any): number | null => {
+        if (v === '' || v == null) return null;
+        const n = Number(v);
+        return isNaN(n) ? null : n;
+      };
+      const bool = (v: any) => v === true || v === 'true' || v === 1 || v === '1';
       const data: any = {};
       // Kontakt-/Basisdaten
       if (body.name !== undefined) data.name = s(body.name);
@@ -137,8 +149,32 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       if (body.socialSecurityNo !== undefined) data.socialSecurityNo = s(body.socialSecurityNo);
       if (body.healthInsurance !== undefined) data.healthInsurance = s(body.healthInsurance);
       if (body.internalNotes !== undefined) data.internalNotes = s(body.internalNotes);
-      const updated = await prisma.appUser.update({ where: { id }, data });
-      return NextResponse.json(updated);
+      // Erweiterte Personalstammdaten (Finanzamt / Lohnbuchhaltung)
+      if (body.birthPlace !== undefined) data.birthPlace = s(body.birthPlace);
+      if (body.nationality !== undefined) data.nationality = s(body.nationality);
+      if (body.maritalStatus !== undefined) data.maritalStatus = s(body.maritalStatus);
+      if (body.religion !== undefined) data.religion = s(body.religion);
+      if (body.taxClass !== undefined) data.taxClass = s(body.taxClass);
+      if (body.childAllowances !== undefined) data.childAllowances = num(body.childAllowances);
+      if (body.severelyDisabled !== undefined) data.severelyDisabled = bool(body.severelyDisabled);
+      if (body.employmentType !== undefined) data.employmentType = s(body.employmentType);
+      if (body.weeklyHours !== undefined) data.weeklyHours = num(body.weeklyHours);
+      if (body.hourlyWage !== undefined) data.hourlyWage = num(body.hourlyWage);
+      if (body.monthlySalary !== undefined) data.monthlySalary = num(body.monthlySalary);
+      if (body.vacationDays !== undefined) {
+        const n = num(body.vacationDays);
+        data.vacationDays = n == null ? null : Math.round(n);
+      }
+      if (body.exitDate !== undefined) data.exitDate = parseDate(body.exitDate);
+      if (body.employmentStatus !== undefined) {
+        const allowed = ['AKTIV', 'INAKTIV', 'AUSGESCHIEDEN'];
+        const v = s(body.employmentStatus).toUpperCase();
+        data.employmentStatus = allowed.includes(v) ? v : 'AKTIV';
+      }
+      // Sensible Felder verschluesselt ablegen (iban, socialSecurityNo, taxId)
+      const updated = await prisma.appUser.update({ where: { id }, data: encryptUser(data) });
+      await logAudit({ action: 'UPDATE', entity: 'USER', entityId: id, summary: `Personaldaten von ${updated.name || updated.email} aktualisiert` });
+      return NextResponse.json(decryptUser(updated));
     }
 
     return NextResponse.json({ error: 'Unbekannte Aktion' }, { status: 400 });
@@ -156,7 +192,9 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     }
     const id = parseInt(params.id, 10);
     if (isNaN(id)) return NextResponse.json({ error: 'Ungültige ID' }, { status: 400 });
+    const victim = await prisma.appUser.findUnique({ where: { id } });
     await prisma.appUser.delete({ where: { id } });
+    await logAudit({ action: 'DELETE', entity: 'USER', entityId: id, summary: `Mitarbeiter ${victim?.name || victim?.email || id} gelöscht` });
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error('users DELETE:', error?.message);

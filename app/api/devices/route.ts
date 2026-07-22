@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getScope, canAccessCustomer } from '@/lib/access';
+import { encryptDevice, decryptDevice } from '@/lib/crypto';
+import { logAudit } from '@/lib/audit';
 
 export async function GET(request: Request) {
   try {
@@ -16,7 +18,7 @@ export async function GET(request: Request) {
       include: { customer: true },
       orderBy: { createdAt: 'desc' },
     });
-    return NextResponse.json(devices ?? []);
+    return NextResponse.json((devices ?? []).map((d) => decryptDevice(d)));
   } catch (error: any) {
     console.error('Devices GET error:', error);
     return NextResponse.json([], { status: 500 });
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Kein Zugriff auf diesen Kunden' }, { status: 403 });
     }
     const device = await prisma.deviceInventory.create({
-      data: {
+      data: encryptDevice({
         customerId: parseInt(body.customerId),
         deviceType: body.deviceType || '',
         brand: body.brand || '',
@@ -39,9 +41,10 @@ export async function POST(request: Request) {
         password: body.password || '',
         wifiPassword: body.wifiPassword || '',
         notes: body.notes || '',
-      },
+      }),
     });
-    return NextResponse.json(device, { status: 201 });
+    await logAudit({ action: 'CREATE', entity: 'DEVICE', entityId: device.id, summary: `Gerät "${device.deviceType || 'Gerät'} ${device.brand}" angelegt` });
+    return NextResponse.json(decryptDevice(device), { status: 201 });
   } catch (error: any) {
     console.error('Devices POST error:', error);
     return NextResponse.json({ error: 'Fehler' }, { status: 500 });

@@ -3,8 +3,12 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isCurrentUserAdmin } from '@/lib/access';
+import { logAudit } from '@/lib/audit';
 
-const CATEGORIES = ['VERTRAG', 'VERSICHERUNG', 'AUSWEIS', 'ZEUGNIS', 'SONSTIGES'];
+const CATEGORIES = [
+  'AUSWEIS', 'VERTRAG', 'SV_AUSWEIS', 'KK_BESCHEINIGUNG', 'AUFENTHALT',
+  'A1', 'FUEHRERSCHEIN', 'VERSICHERUNG', 'ZEUGNIS', 'SONSTIGES',
+];
 
 // GET: Dokumentenliste eines Mitarbeiters (nur Admin). Ohne Download-URLs.
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
@@ -47,6 +51,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
     const rawCat = String(body?.category ?? 'SONSTIGES').toUpperCase();
     const category = CATEGORIES.includes(rawCat) ? rawCat : 'SONSTIGES';
+    let expiryDate: Date | null = null;
+    if (body?.expiryDate && typeof body.expiryDate === 'string' && body.expiryDate.trim()) {
+      const d = new Date(body.expiryDate);
+      if (!isNaN(d.getTime())) expiryDate = d;
+    }
 
     const doc = await prisma.employeeDocument.create({
       data: {
@@ -57,8 +66,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
         isPublic: false,
         mimeType: String(body?.mimeType ?? ''),
         size: Number.isFinite(body?.size) ? Math.max(0, Math.floor(body.size)) : 0,
+        expiryDate,
       },
     });
+    await logAudit({ action: 'CREATE', entity: 'DOCUMENT', entityId: userId, summary: `Dokument "${fileName}" (${category}) hochgeladen` });
     return NextResponse.json(doc);
   } catch (error: any) {
     console.error('documents POST:', error?.message);

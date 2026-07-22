@@ -402,7 +402,27 @@ model AppUser {
   taxId            String    @default("") // Steuer-ID
   socialSecurityNo String    @default("") // Sozialversicherungsnummer
   healthInsurance  String    @default("") // Krankenkasse
+  // ---- Erweiterte Personalstammdaten (Finanzamt / Lohnbuchhaltung) ----
+  birthPlace       String    @default("") // Geburtsort
+  nationality      String    @default("") // Staatsangehoerigkeit
+  maritalStatus    String    @default("") // ledig, verheiratet, geschieden, verwitwet
+  religion         String    @default("") // Konfession (Kirchensteuer)
+  taxClass         String    @default("") // Steuerklasse I-VI
+  childAllowances  Float?                 // Kinderfreibetraege
+  severelyDisabled Boolean   @default(false) // Schwerbehinderung
+  employmentType   String    @default("") // MINIJOB, TEILZEIT, VOLLZEIT, WERKSTUDENT, AUSBILDUNG
+  weeklyHours      Float?                 // Wochenarbeitszeit (Stunden)
+  hourlyWage       Float?                 // Stundenlohn (brutto)
+  monthlySalary    Float?                 // Monatsgehalt (brutto)
+  vacationDays     Int?                   // Urlaubsanspruch pro Jahr
+  exitDate         DateTime?              // Austrittsdatum
+  employmentStatus String    @default("AKTIV") // AKTIV, INAKTIV, AUSGESCHIEDEN
   internalNotes    String    @default("") // interne Notizen (nur Admin)
+  // ---- Einladung & Vertrag (Phase B) ----
+  inviteToken      String?   @unique          // kryptografisches Einladungs-Token
+  inviteExpiresAt  DateTime?                  // Ablauf des Einladungs-Links
+  contractSignature String   @default("")     // Base64-PNG der Unterschrift
+  contractSignedAt DateTime?                  // Zeitpunkt der Vertragsunterschrift
   // ---- Onboarding / Gating ----
   onboardingDone   Boolean   @default(false)
   // Persoenliche Konfiguration des Start-Hero-Widgets (JSON-String):
@@ -426,9 +446,25 @@ model EmployeeDocument {
   isPublic   Boolean  @default(false)
   mimeType   String   @default("")
   size       Int      @default(0)
+  expiryDate DateTime? // Ablaufdatum (z.B. Fuehrerschein, Aufenthaltstitel, Zertifikat)
   uploadedAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  actorId   Int?     // AppUser-ID des Ausloesers
+  actorName String   @default("")
+  action    String   // CREATE, UPDATE, DELETE, APPROVE, REJECT, ROLE, PREFIX ...
+  entity    String   // USER, DEVICE, DOCUMENT ...
+  entityId  Int?
+  summary   String   @default("")
+  details   String   @default("") // optionales JSON
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
 }
 
 model Ticket {

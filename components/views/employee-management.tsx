@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, Lock, User, FileText, Trash2, Download, Upload, Search } from 'lucide-react';
+import { Loader2, Lock, User, FileText, Trash2, Download, Upload, Search, History, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -11,16 +11,47 @@ import { notifySuccess, notifyError } from '@/lib/toast';
 const MOBILE_TEXT =
   'Diese Mitarbeiterverwaltungszentrale ist aus Gründen der Datensicherheit und Übersicht nur auf dem Desktop verfügbar. Bitte logge dich an einem PC ein.';
 
+// Alle wählbaren Dokumentkategorien (Upload-Auswahl)
 const DOC_CATEGORIES = [
-  { value: 'VERTRAG', label: 'Vertrag' },
+  { value: 'AUSWEIS', label: 'Personalausweis' },
+  { value: 'VERTRAG', label: 'Arbeitsvertrag' },
+  { value: 'SV_AUSWEIS', label: 'SV-Ausweis' },
+  { value: 'KK_BESCHEINIGUNG', label: 'Krankenkassen-Bescheinigung' },
+  { value: 'AUFENTHALT', label: 'Aufenthalts-/Arbeitserlaubnis' },
+  { value: 'A1', label: 'A1-Bescheinigung' },
+  { value: 'FUEHRERSCHEIN', label: 'Führerschein' },
   { value: 'VERSICHERUNG', label: 'Versicherung' },
-  { value: 'AUSWEIS', label: 'Ausweis' },
   { value: 'ZEUGNIS', label: 'Zeugnis' },
   { value: 'SONSTIGES', label: 'Sonstiges' },
 ];
 
+// Pflicht-Dokumente für die Checkliste (Punkt 3)
+const REQUIRED_DOCS = [
+  { value: 'AUSWEIS', label: 'Personalausweis' },
+  { value: 'VERTRAG', label: 'Arbeitsvertrag' },
+  { value: 'SV_AUSWEIS', label: 'SV-Ausweis' },
+  { value: 'KK_BESCHEINIGUNG', label: 'Krankenkassen-Bescheinigung' },
+  { value: 'FUEHRERSCHEIN', label: 'Führerschein (für Außendienst)' },
+];
+
+const MARITAL = ['', 'ledig', 'verheiratet', 'geschieden', 'verwitwet', 'eingetr. Lebenspartnerschaft'];
+const TAX_CLASSES = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
+const EMPLOYMENT_TYPES = [
+  { value: '', label: '—' },
+  { value: 'MINIJOB', label: 'Minijob' },
+  { value: 'TEILZEIT', label: 'Teilzeit' },
+  { value: 'VOLLZEIT', label: 'Vollzeit' },
+  { value: 'WERKSTUDENT', label: 'Werkstudent' },
+  { value: 'AUSBILDUNG', label: 'Ausbildung' },
+];
+const EMPLOYMENT_STATUS = [
+  { value: 'AKTIV', label: 'Aktiv' },
+  { value: 'INAKTIV', label: 'Inaktiv' },
+  { value: 'AUSGESCHIEDEN', label: 'Ausgeschieden' },
+];
+
 interface EmployeeDoc {
-  id: number; category: string; fileName: string; mimeType: string; size: number; uploadedAt: string;
+  id: number; category: string; fileName: string; mimeType: string; size: number; uploadedAt: string; expiryDate: string | null;
 }
 
 interface Employee {
@@ -29,6 +60,10 @@ interface Employee {
   position: string; personalEmail: string; birthDate: string | null; startDate: string | null;
   emergencyContact: string; emergencyPhone: string; iban: string; taxId: string;
   socialSecurityNo: string; healthInsurance: string; internalNotes: string;
+  birthPlace: string; nationality: string; maritalStatus: string; religion: string; taxClass: string;
+  childAllowances: number | null; severelyDisabled: boolean; employmentType: string;
+  weeklyHours: number | null; hourlyWage: number | null; monthlySalary: number | null;
+  vacationDays: number | null; exitDate: string | null; employmentStatus: string;
 }
 
 function toDateInput(v: string | null): string {
@@ -38,11 +73,25 @@ function toDateInput(v: string | null): string {
   return d.toISOString().slice(0, 10);
 }
 
+function numStr(v: number | null | undefined): string {
+  return v == null ? '' : String(v);
+}
+
 function fmtSize(n: number): string {
   if (!n) return '';
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function expiryInfo(v: string | null): { level: 'ok' | 'soon' | 'expired'; days: number } | null {
+  if (!v) return null;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return null;
+  const days = Math.ceil((d.getTime() - Date.now()) / 86400000);
+  if (days < 0) return { level: 'expired', days };
+  if (days <= 30) return { level: 'soon', days };
+  return { level: 'ok', days };
 }
 
 /** Mitarbeiterverwaltungszentrale (nur Admin, nur Desktop). */
@@ -121,7 +170,14 @@ function ManagementDesktop() {
                       <User className="w-4 h-4 text-muted-foreground" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{e.name || e.email}</p>
+                      <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                        {e.name || e.email}
+                        {e.employmentStatus && e.employmentStatus !== 'AKTIV' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                            {e.employmentStatus === 'AUSGESCHIEDEN' ? 'Ausgeschieden' : 'Inaktiv'}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {e.role === 'ADMIN' ? 'Administrator' : 'Mitarbeiter'}
                         {e.employeeNo ? ` · Nr. ${String(e.employeeNo).padStart(3, '0')}` : ''}
@@ -164,6 +220,20 @@ function EmployeeEditor({ employee, onSaved }: { employee: Employee; onSaved: ()
     personalEmail: employee.personalEmail || '',
     birthDate: toDateInput(employee.birthDate),
     startDate: toDateInput(employee.startDate),
+    exitDate: toDateInput(employee.exitDate),
+    employmentStatus: employee.employmentStatus || 'AKTIV',
+    birthPlace: employee.birthPlace || '',
+    nationality: employee.nationality || '',
+    maritalStatus: employee.maritalStatus || '',
+    religion: employee.religion || '',
+    taxClass: employee.taxClass || '',
+    childAllowances: numStr(employee.childAllowances),
+    severelyDisabled: !!employee.severelyDisabled,
+    employmentType: employee.employmentType || '',
+    weeklyHours: numStr(employee.weeklyHours),
+    hourlyWage: numStr(employee.hourlyWage),
+    monthlySalary: numStr(employee.monthlySalary),
+    vacationDays: numStr(employee.vacationDays),
     emergencyContact: employee.emergencyContact || '',
     emergencyPhone: employee.emergencyPhone || '',
     iban: employee.iban || '',
@@ -217,8 +287,74 @@ function EmployeeEditor({ employee, onSaved }: { employee: Employee; onSaved: ()
               {!emailValid && <p className="text-xs text-red-500 mt-1">Ungültige E-Mail.</p>}
             </div>
             <div><Label>Geburtsdatum</Label><Input type="date" value={form.birthDate} onChange={set('birthDate')} /></div>
-            <div><Label>Eintrittsdatum</Label><Input type="date" value={form.startDate} onChange={set('startDate')} /></div>
+            <div><Label>Geburtsort</Label><Input value={form.birthPlace} onChange={set('birthPlace')} autoCapitalize="words" /></div>
+            <div><Label>Staatsangehörigkeit</Label><Input value={form.nationality} onChange={set('nationality')} autoCapitalize="words" placeholder="z.B. deutsch" /></div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardContent className="p-4">
+          <h3 className="font-display text-base font-bold mb-3">Beschäftigung &amp; Vergütung</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label>Beschäftigungsart</Label>
+              <select value={form.employmentType} onChange={set('employmentType')} className="w-full mt-1 h-10 px-2 text-sm border border-input rounded-md bg-background">
+                {EMPLOYMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Status</Label>
+              <select value={form.employmentStatus} onChange={set('employmentStatus')} className="w-full mt-1 h-10 px-2 text-sm border border-input rounded-md bg-background">
+                {EMPLOYMENT_STATUS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div><Label>Eintrittsdatum</Label><Input type="date" value={form.startDate} onChange={set('startDate')} /></div>
+            <div><Label>Austrittsdatum</Label><Input type="date" value={form.exitDate} onChange={set('exitDate')} /></div>
+            <div><Label>Wochenstunden</Label><Input value={form.weeklyHours} onChange={set('weeklyHours')} inputMode="decimal" autoCorrect="off" placeholder="z.B. 40" /></div>
+            <div><Label>Urlaubsanspruch (Tage/Jahr)</Label><Input value={form.vacationDays} onChange={set('vacationDays')} inputMode="numeric" autoCorrect="off" placeholder="z.B. 24" /></div>
+            <div><Label>Stundenlohn brutto (€)</Label><Input value={form.hourlyWage} onChange={set('hourlyWage')} inputMode="decimal" autoCorrect="off" /></div>
+            <div><Label>Monatsgehalt brutto (€)</Label><Input value={form.monthlySalary} onChange={set('monthlySalary')} inputMode="decimal" autoCorrect="off" /></div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardContent className="p-4">
+          <h3 className="font-display text-base font-bold mb-3">Steuer und Sozialversicherung</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label>Steuerklasse</Label>
+              <select value={form.taxClass} onChange={set('taxClass')} className="w-full mt-1 h-10 px-2 text-sm border border-input rounded-md bg-background">
+                {TAX_CLASSES.map((t) => <option key={t} value={t}>{t || '—'}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Familienstand</Label>
+              <select value={form.maritalStatus} onChange={set('maritalStatus')} className="w-full mt-1 h-10 px-2 text-sm border border-input rounded-md bg-background">
+                {MARITAL.map((m) => <option key={m} value={m}>{m || '—'}</option>)}
+              </select>
+            </div>
+            <div><Label>Konfession (Kirchensteuer)</Label><Input value={form.religion} onChange={set('religion')} placeholder="z.B. rk, ev, keine" /></div>
+            <div><Label>Kinderfreibeträge</Label><Input value={form.childAllowances} onChange={set('childAllowances')} inputMode="decimal" autoCorrect="off" placeholder="z.B. 1 oder 0.5" /></div>
+            <div><Label>Steuer-ID</Label><Input value={form.taxId} onChange={set('taxId')} inputMode="numeric" autoCorrect="off" /></div>
+            <div><Label>Sozialversicherungsnummer</Label><Input value={form.socialSecurityNo} onChange={set('socialSecurityNo')} autoCorrect="off" /></div>
+            <div><Label>Krankenkasse</Label><Input value={form.healthInsurance} onChange={set('healthInsurance')} autoCapitalize="words" /></div>
+            <div>
+              <Label>IBAN (für Lohn)</Label>
+              <Input value={form.iban} onChange={set('iban')} autoCapitalize="characters" autoCorrect="off" spellCheck={false} placeholder="DE00 0000 0000 0000 0000 00" />
+              {!ibanValid && <p className="text-xs text-red-500 mt-1">IBAN sieht zu kurz aus.</p>}
+            </div>
+            <label className="flex items-center gap-2 sm:col-span-2 mt-1 cursor-pointer select-none">
+              <input type="checkbox" checked={form.severelyDisabled}
+                onChange={(e) => setForm((f) => ({ ...f, severelyDisabled: e.target.checked }))}
+                className="w-4 h-4 rounded border-input accent-primary" />
+              <span className="text-sm">Schwerbehinderung vorhanden</span>
+            </label>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-3">
+            IBAN, Steuer-ID und SV-Nummer werden verschlüsselt gespeichert.
+          </p>
         </CardContent>
       </Card>
 
@@ -228,22 +364,6 @@ function EmployeeEditor({ employee, onSaved }: { employee: Employee; onSaved: ()
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>Name</Label><Input value={form.emergencyContact} onChange={set('emergencyContact')} autoCapitalize="words" /></div>
             <div><Label>Telefon</Label><Input value={form.emergencyPhone} onChange={set('emergencyPhone')} inputMode="tel" autoCorrect="off" /></div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-sm">
-        <CardContent className="p-4">
-          <h3 className="font-display text-base font-bold mb-3">Abrechnung und Sozialdaten</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label>IBAN</Label>
-              <Input value={form.iban} onChange={set('iban')} autoCapitalize="characters" autoCorrect="off" spellCheck={false} placeholder="DE00 0000 0000 0000 0000 00" />
-              {!ibanValid && <p className="text-xs text-red-500 mt-1">IBAN sieht zu kurz aus.</p>}
-            </div>
-            <div><Label>Steuer-ID</Label><Input value={form.taxId} onChange={set('taxId')} inputMode="numeric" autoCorrect="off" /></div>
-            <div><Label>Sozialversicherungsnummer</Label><Input value={form.socialSecurityNo} onChange={set('socialSecurityNo')} autoCorrect="off" /></div>
-            <div><Label>Krankenkasse</Label><Input value={form.healthInsurance} onChange={set('healthInsurance')} autoCapitalize="words" /></div>
           </div>
         </CardContent>
       </Card>
@@ -262,6 +382,7 @@ function EmployeeEditor({ employee, onSaved }: { employee: Employee; onSaved: ()
       </div>
 
       <DocumentsPanel userId={employee.id} />
+      <AuditPanel userId={employee.id} />
     </div>
   );
 }
@@ -270,7 +391,8 @@ function DocumentsPanel({ userId }: { userId: number }) {
   const [docs, setDocs] = useState<EmployeeDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [category, setCategory] = useState('VERTRAG');
+  const [category, setCategory] = useState('AUSWEIS');
+  const [expiry, setExpiry] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -309,10 +431,11 @@ function DocumentsPanel({ userId }: { userId: number }) {
       if (!putRes.ok) throw new Error('put');
       const metaRes = await fetch(`/api/users/${userId}/documents`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category, fileName: file.name, filePath: cloud_storage_path, mimeType: file.type, size: file.size }),
+        body: JSON.stringify({ category, fileName: file.name, filePath: cloud_storage_path, mimeType: file.type, size: file.size, expiryDate: expiry || null }),
       });
       if (!metaRes.ok) throw new Error('meta');
       notifySuccess('Hochgeladen', 'Das Dokument wurde gespeichert.');
+      setExpiry('');
       load();
     } catch {
       notifyError('Fehler', 'Der Upload ist fehlgeschlagen.');
@@ -353,6 +476,20 @@ function DocumentsPanel({ userId }: { userId: number }) {
 
   const catLabel = (v: string) => DOC_CATEGORIES.find((c) => c.value === v)?.label || 'Sonstiges';
 
+  // Checklisten-Status je Pflicht-Dokument
+  const checklist = REQUIRED_DOCS.map((req) => {
+    const items = docs.filter((d) => d.category === req.value);
+    if (items.length === 0) return { ...req, state: 'missing' as const };
+    let worst: 'ok' | 'soon' | 'expired' = 'ok';
+    for (const it of items) {
+      const info = expiryInfo(it.expiryDate);
+      if (info?.level === 'expired') worst = 'expired';
+      else if (info?.level === 'soon' && worst !== 'expired') worst = 'soon';
+    }
+    return { ...req, state: worst === 'expired' ? ('expired' as const) : worst === 'soon' ? ('soon' as const) : ('present' as const) };
+  });
+  const doneCount = checklist.filter((c) => c.state === 'present').length;
+
   return (
     <Card className="shadow-sm">
       <CardContent className="p-4">
@@ -360,6 +497,37 @@ function DocumentsPanel({ userId }: { userId: number }) {
           <FileText className="w-4 h-4 text-primary" />
           <h3 className="font-display text-base font-bold">Sensible Dokumente</h3>
         </div>
+
+        {/* Pflicht-Checkliste */}
+        <div className="mb-4 rounded-lg border border-border p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">Pflicht-Checkliste</span>
+            <span className="text-xs text-muted-foreground">{doneCount}/{REQUIRED_DOCS.length} vollständig</span>
+          </div>
+          <div className="space-y-1.5">
+            {checklist.map((c) => (
+              <div key={c.value} className="flex items-center gap-2 text-sm">
+                {c.state === 'present' ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                ) : c.state === 'soon' ? (
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                ) : c.state === 'expired' ? (
+                  <XCircle className="w-4 h-4 text-red-600 shrink-0" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+                )}
+                <span className={c.state === 'missing' ? 'text-muted-foreground' : ''}>{c.label}</span>
+                <span className="ml-auto text-xs">
+                  {c.state === 'present' && <span className="text-green-600">vorhanden</span>}
+                  {c.state === 'soon' && <span className="text-amber-500">läuft bald ab</span>}
+                  {c.state === 'expired' && <span className="text-red-600">abgelaufen</span>}
+                  {c.state === 'missing' && <span className="text-muted-foreground">fehlt</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <p className="text-xs text-muted-foreground mb-3">
           Verträge, Versicherungen, Ausweise und mehr. Dateien werden verschlüsselt und privat gespeichert.
         </p>
@@ -371,6 +539,10 @@ function DocumentsPanel({ userId }: { userId: number }) {
               className="w-full mt-1 h-10 px-2 text-sm border border-input rounded-md bg-background">
               {DOC_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
+          </div>
+          <div className="min-w-[150px]">
+            <Label className="text-xs">Ablaufdatum (optional)</Label>
+            <Input type="date" value={expiry} onChange={(e: any) => setExpiry(e.target.value)} className="mt-1" />
           </div>
           <input ref={fileRef} type="file" className="hidden" onChange={onFilePicked} />
           <Button variant="outline" onClick={() => fileRef.current?.click()} loading={uploading}>
@@ -384,21 +556,86 @@ function DocumentsPanel({ userId }: { userId: number }) {
           <p className="text-sm text-muted-foreground py-4 text-center">Noch keine Dokumente hinterlegt.</p>
         ) : (
           <div className="space-y-2">
-            {docs.map((d) => (
-              <div key={d.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-border">
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">{catLabel(d.category)}</span>
+            {docs.map((d) => {
+              const info = expiryInfo(d.expiryDate);
+              return (
+                <div key={d.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-border">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">{catLabel(d.category)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{d.fileName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {fmtSize(d.size)}{d.size ? ' · ' : ''}{new Date(d.uploadedAt).toLocaleDateString('de-DE', { timeZone: 'UTC' })}
+                      {d.expiryDate && (
+                        <span className={info?.level === 'expired' ? ' text-red-600' : info?.level === 'soon' ? ' text-amber-500' : ''}>
+                          {' · gültig bis '}{new Date(d.expiryDate).toLocaleDateString('de-DE', { timeZone: 'UTC' })}
+                          {info?.level === 'expired' ? ' (abgelaufen)' : info?.level === 'soon' ? ` (in ${info.days} T.)` : ''}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <button onClick={() => download(d.id)} title="Herunterladen" className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => remove(d.id)} title="Löschen" className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 text-muted-foreground hover:text-red-600">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface AuditEntry {
+  id: number; actorName: string; action: string; entity: string; summary: string; createdAt: string;
+}
+
+function AuditPanel({ userId }: { userId: number }) {
+  const [logs, setLogs] = useState<AuditEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/audit-log?entityId=${userId}&limit=30`, { cache: 'no-store' });
+        if (!res.ok) throw new Error('load');
+        const data = await res.json();
+        if (active) setLogs(Array.isArray(data?.logs) ? data.logs : []);
+      } catch {
+        if (active) setLogs([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [userId]);
+
+  return (
+    <Card className="shadow-sm">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <History className="w-4 h-4 text-primary" />
+          <h3 className="font-display text-base font-bold">Änderungsprotokoll</h3>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : logs.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2 text-center">Noch keine Änderungen protokolliert.</p>
+        ) : (
+          <div className="space-y-2 max-h-[320px] overflow-y-auto">
+            {logs.map((l) => (
+              <div key={l.id} className="flex items-start gap-2 text-sm border-b border-border/60 pb-2 last:border-0">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{d.fileName}</p>
+                  <p className="truncate">{l.summary || `${l.action} ${l.entity}`}</p>
                   <p className="text-xs text-muted-foreground">
-                    {fmtSize(d.size)}{d.size ? ' · ' : ''}{new Date(d.uploadedAt).toLocaleDateString('de-DE', { timeZone: 'UTC' })}
+                    {l.actorName || 'System'} · {new Date(l.createdAt).toLocaleString('de-DE', { timeZone: 'UTC' })}
                   </p>
                 </div>
-                <button onClick={() => download(d.id)} title="Herunterladen" className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
-                  <Download className="w-4 h-4" />
-                </button>
-                <button onClick={() => remove(d.id)} title="Löschen" className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 text-muted-foreground hover:text-red-600">
-                  <Trash2 className="w-4 h-4" />
-                </button>
               </div>
             ))}
           </div>

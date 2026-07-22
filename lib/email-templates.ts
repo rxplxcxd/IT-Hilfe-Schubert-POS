@@ -234,3 +234,58 @@ export function ticketDeadlineReminderHtml(d: TicketDeadlineReminderData) {
     <p style="margin:20px 0 0;font-size:14px;line-height:1.6;color:#334155;">Du findest das Ticket direkt im Ticketsystem der App.</p>`;
   return layout(s.headline, inner, 'Automatische Frist-Erinnerung aus dem POS-System von IT-Hilfe Schubert.');
 }
+
+// ---- Phase B: Einladung & Willkommen (Punkte 10, 14) ----
+
+export interface InviteEmailData {
+  name: string;
+  inviteUrl: string;
+}
+
+export function inviteEmployeeHtml(d: InviteEmailData) {
+  const inner = `
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">Hallo ${d.name},</p>
+    <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#334155;">
+      Du wurdest als neues Teammitglied bei <strong>IT-Hilfe Schubert</strong> eingeladen.
+      Klicke auf den Button, um dein Passwort festzulegen und sofort loszulegen:
+    </p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${d.inviteUrl}" style="display:inline-block;background:#1e40af;color:#ffffff;font-weight:700;font-size:15px;padding:12px 32px;border-radius:10px;text-decoration:none;">
+        Einladung annehmen
+      </a>
+    </div>
+    <p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#64748b;">
+      Der Link ist 7 Tage gültig. Falls er nicht funktioniert, kopiere diese Adresse in deinen Browser:
+    </p>
+    <p style="margin:0 0 0;font-size:12px;word-break:break-all;color:#94a3b8;">${d.inviteUrl}</p>`;
+  return layout('Einladung: IT-Hilfe Schubert', inner, 'Diese Einladung wurde automatisch von IT-Hilfe Schubert versendet.');
+}
+
+export interface WelcomeEmailData {
+  name: string;
+  employeeNo?: number | null;
+  firmEmail?: string;
+}
+
+export function welcomeEmployeeHtml(d: WelcomeEmailData) {
+  const empCode = d.employeeNo ? `M${String(d.employeeNo).padStart(3, '0')}` : '';
+  const inner = `
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">Hallo ${d.name},</p>
+    <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#334155;">
+      herzlich willkommen im Team! Dein Zugang ist jetzt aktiv. Hier sind deine Eckdaten:
+    </p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:20px 22px;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${empCode ? infoRow('Mitarbeiter-Nr.', empCode) : ''}
+        ${d.firmEmail ? infoRow('Firmen-E-Mail', d.firmEmail) : ''}
+      </table>
+    </div>
+    <p style="margin:20px 0 6px;font-size:15px;line-height:1.7;color:#334155;font-weight:600;">So geht es weiter:</p>
+    <ol style="margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.8;color:#334155;">
+      <li>Melde dich mit deiner E-Mail und deinem Passwort an.</li>
+      <li>Vervollständige dein Profil im Onboarding-Assistenten.</li>
+      <li>Verbinde dein Gmail-Postfach, damit du E-Mails direkt aus der App senden kannst.</li>
+    </ol>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">Bei Fragen wende dich einfach an deinen Administrator. Viel Erfolg!</p>`;
+  return layout('Willkommen bei IT-Hilfe Schubert!', inner, 'Automatische Willkommens-E-Mail von IT-Hilfe Schubert.');
+}

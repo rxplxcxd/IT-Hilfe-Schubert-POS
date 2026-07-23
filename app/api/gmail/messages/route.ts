@@ -47,7 +47,12 @@ async function syncInbox(ownerId: number, compAddress: string | null) {
     const auth = await getAuthedClientForUser(ownerId);
     if (!auth) return { connected: false };
     const gmail = google.gmail({ version: 'v1', auth });
-    const query = companyInboxQuery(compAddress);
+    // Auch den Spam-Ordner durchsuchen: ueber ImprovMX weitergeleitete Mails
+    // landen bei Gmail haeufig im Spam (solange die Domain in DNS/Resend nicht
+    // verifiziert ist). "in:anywhere" schliesst Spam ein, "-in:trash" laesst den
+    // Papierkorb aussen vor.
+    const base = companyInboxQuery(compAddress);
+    const query = compAddress ? [base, 'in:anywhere', '-in:trash'].filter(Boolean).join(' ') : base;
     const list = await gmail.users.messages.list({ userId: 'me', maxResults: 25, q: query });
     for (const m of list.data.messages || []) {
       if (!m.id) continue;

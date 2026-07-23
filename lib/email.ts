@@ -18,10 +18,11 @@ export interface SendEmailOptions {
   subject: string;
   html: string;
   replyTo?: string;
+  from?: string; // optionaler Absender (z.B. Firmen-Adresse des Mitarbeiters)
   attachments?: EmailAttachment[];
 }
 
-export async function sendEmail({ to, subject, html, replyTo, attachments }: SendEmailOptions) {
+export async function sendEmail({ to, subject, html, replyTo, from, attachments }: SendEmailOptions) {
   if (!resendApiKey) {
     throw new Error('RESEND_API_KEY ist nicht gesetzt');
   }
@@ -29,7 +30,7 @@ export async function sendEmail({ to, subject, html, replyTo, attachments }: Sen
   const resend = new Resend(resendApiKey);
 
   const { data, error } = await resend.emails.send({
-    from: fromEmail,
+    from: from || fromEmail,
     to: [to],
     subject,
     html,

@@ -521,3 +521,34 @@ model TicketMessage {
 
   @@index([ticketId])
 }
+
+// ---------------------------------------------------------------------------
+// E-Mail-Postfach (Phase: Email-Tab-Umbau v38)
+// Eigener Mail-Speicher pro Mitarbeiter, damit ausgehende Mails (ueber Resend
+// verschickt) IMMER sichtbar sind und Ordner (Posteingang/Gesendet/Archiv)
+// funktionieren. Eingehende Mails werden aus dem verbundenen Gmail-Konto
+// synchronisiert (ImprovMX leitet die Firmen-Adresse dorthin weiter).
+// ---------------------------------------------------------------------------
+model EmailMessage {
+  id         Int      @id @default(autoincrement())
+  ownerId    Int      // AppUser.id, dem dieses Postfach gehoert
+  gmailId    String?  // Gmail-Message-ID (nur bei eingehenden, synchronisierten Mails)
+  threadId   String?  // Gmail-Thread bzw. eigener Thread
+  direction  String   @default("INCOMING") // INCOMING | OUTGOING
+  folder     String   @default("INBOX")    // INBOX | SENT | ARCHIVE
+  fromAddr   String   @default("")
+  toAddr     String   @default("")
+  cc         String   @default("")
+  subject    String   @default("")
+  snippet    String   @default("")
+  bodyHtml   String   @default("") @db.Text
+  bodyText   String   @default("") @db.Text
+  isHtml     Boolean  @default(true)
+  isRead     Boolean  @default(true)
+  isArchived Boolean  @default(false)
+  sentAt     DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@unique([ownerId, gmailId])
+  @@index([ownerId, folder, sentAt])
+}

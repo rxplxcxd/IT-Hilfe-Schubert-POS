@@ -1,18 +1,29 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
 import { prisma } from '@/lib/prisma';
 import { getAccessForCurrentUser } from '@/lib/access';
-import { getAuthedClientForUser, getUserToken, companyAddress, gmailErrorHint } from '@/lib/gmail';
+import { companyAddress } from '@/lib/gmail';
 import { outgoingEmailHtml } from '@/lib/email-templates';
+import { sendEmail } from '@/lib/email';
 
-function encodeHeader(value: string) {
-  // RFC 2047 Encoding fuer Nicht-ASCII-Zeichen im Header (z.B. Umlaute).
-  if (/^[\x00-\x7F]*$/.test(value)) return value;
-  return '=?UTF-8?B?' + Buffer.from(value, 'utf-8').toString('base64') + '?=';
+function stripHtml(html: string): string {
+  return (html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
+/**
+ * Versendet eine E-Mail ueber Resend von der FIRMEN-Adresse des Mitarbeiters
+ * (z.B. leon@ithilfeschubert.xyz). Antworten laufen per Reply-To ebenfalls
+ * ueber die Firmen-Adresse (ImprovMX leitet sie ans Gmail-Postfach weiter).
+ *
+ * Jede gesendete Mail wird zusaetzlich im eigenen Postfach-Speicher abgelegt,
+ * damit sie IMMER im Ordner "Gesendet" erscheint - unabhaengig von Gmail.
+ */
 export async function POST(request: Request) {
   try {
     const access = await getAccessForCurrentUser();
@@ -20,36 +31,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
     }
 
-    const oauth2Client = await getAuthedClientForUser(access.id);
-    if (!oauth2Client) {
-      return NextResponse.json({ error: 'Nicht verbunden' }, { status: 401 });
-    }
-
-    const token = await getUserToken(access.id);
-
-    // Absender = Firmen-Adresse (setzt den in Gmail eingerichteten "Senden als"
-    // Alias voraus). Ohne Prefix wird das verbundene Gmail-Konto genutzt.
     const settings = await prisma.settings.findUnique({ where: { id: 1 } });
     const me = await prisma.appUser.findUnique({ where: { id: access.id } });
     const domain = (settings as any)?.mailDomain || 'ithilfeschubert.xyz';
     const compAddress = companyAddress((me as any)?.emailPrefix || '', domain);
     const companyName = settings?.companyName || 'IT-Hilfe Schubert';
-    const fromAddress = compAddress || token?.email || '';
-    // Anzeigename = voller Name des Mitarbeiters (Leon moechte den Namen behalten,
-    // nur die Gmail-Adresse soll durch die Firmen-Adresse ersetzt werden).
+
+    if (!compAddress) {
+      return NextResponse.json({
+        error: 'Dir ist noch keine Firmen-E-Mail-Adresse zugewiesen. Bitte lasse dir vom Administrator eine Adresse (z.B. dein-name@' + domain + ') zuweisen.',
+      }, { status: 400 });
+    }
+
     const senderDisplay = (me as any)?.name || settings?.ownerName || companyName;
-    const fromHeader = compAddress
-      ? `${encodeHeader(senderDisplay)} <${fromAddress}>`
-      : fromAddress;
+    const fromHeader = senderDisplay + ' <' + compAddress + '>';
 
-    const { to, subject, body, inReplyTo, threadId } = await request.json();
+    const { to, subject, body, threadId } = await request.json();
+    if (!to || !subject) {
+      return NextResponse.json({ error: 'Empfänger und Betreff sind Pflichtfelder' }, { status: 400 });
+    }
 
-    // Gebrandeter Header + Footer (Signatur aus Kontaktdaten) um den Text legen.
+    // Gebrandeter Header + Signatur um den Text legen.
     const wrappedBody = outgoingEmailHtml(body || '', {
       senderName: senderDisplay,
       position: (me as any)?.position || ((me as any)?.role === 'ADMIN' ? 'Inhaber' : ''),
       phone: (me as any)?.contactPhone || settings?.phone || '',
-      email: fromAddress,
+      email: compAddress,
       companyName,
       street: (me as any)?.contactStreet || settings?.street || '',
       zip: (me as any)?.contactZip || settings?.zip || '',
@@ -57,34 +64,39 @@ export async function POST(request: Request) {
       website: domain ? 'www.' + domain : '',
     });
 
-    const headers = [
-      `To: ${to}`,
-      `From: ${fromHeader}`,
-      `Subject: ${encodeHeader(subject || '')}`,
-      'MIME-Version: 1.0',
-      'Content-Type: text/html; charset=utf-8',
-    ];
-    if (inReplyTo) {
-      headers.push(`In-Reply-To: ${inReplyTo}`);
-      headers.push(`References: ${inReplyTo}`);
-    }
-
-    const raw = Buffer.from(headers.join('\r\n') + '\r\n\r\n' + wrappedBody)
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
-
-    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-    const result = await gmail.users.messages.send({
-      userId: 'me',
-      requestBody: { raw, threadId: threadId || undefined },
+    // Versand ueber Resend von der Firmen-Domain; Antworten ans Firmen-Postfach.
+    await sendEmail({
+      to,
+      subject,
+      html: wrappedBody,
+      from: fromHeader,
+      replyTo: compAddress,
     });
 
-    return NextResponse.json({ success: true, messageId: result.data.id });
+    // Im eigenen Postfach-Speicher als "Gesendet" ablegen.
+    const stored = await prisma.emailMessage.create({
+      data: {
+        ownerId: access.id,
+        gmailId: null,
+        threadId: threadId || null,
+        direction: 'OUTGOING',
+        folder: 'SENT',
+        fromAddr: fromHeader,
+        toAddr: to,
+        subject: subject || '',
+        snippet: stripHtml(wrappedBody).slice(0, 160),
+        bodyHtml: wrappedBody,
+        bodyText: '',
+        isHtml: true,
+        isRead: true,
+        isArchived: false,
+        sentAt: new Date(),
+      },
+    });
+
+    return NextResponse.json({ success: true, id: stored.id });
   } catch (error: any) {
-    console.error('Gmail send error:', error?.response?.data || error?.message || error);
-    const hint = gmailErrorHint(error);
-    return NextResponse.json({ error: hint.message }, { status: hint.status });
+    console.error('Mail send error:', error?.message || error);
+    return NextResponse.json({ error: error?.message || 'Fehler beim Senden der E-Mail.' }, { status: 500 });
   }
 }

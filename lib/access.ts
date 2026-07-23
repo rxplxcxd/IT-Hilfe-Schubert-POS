@@ -49,7 +49,18 @@ export async function getAccessForCurrentUser(): Promise<AccessInfo | null> {
 
   const record = await withRetry(async () => {
     let rec = await prisma.appUser.findUnique({ where: { email } });
-    if (rec) return rec;
+    if (rec) {
+      // Selbstheilung: Eine Einladung durch den Admin gilt als Freigabe.
+      // Wer eingeladen wurde und sich erfolgreich einloggen kann, wird
+      // automatisch freigeschaltet (kein separater Freigabe-Schritt noetig).
+      if (rec.status === 'INVITED') {
+        rec = await prisma.appUser.update({
+          where: { id: rec.id },
+          data: { status: 'APPROVED', approvedAt: new Date(), inviteToken: null, inviteExpiresAt: null },
+        });
+      }
+      return rec;
+    }
 
     const count = await prisma.appUser.count();
     if (count === 0) {

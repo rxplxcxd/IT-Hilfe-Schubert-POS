@@ -25,7 +25,17 @@ export async function POST(request: Request) {
 
     const { record, isFirst } = await withRetry(async () => {
       const existing = await prisma.appUser.findUnique({ where: { email: normalized } });
-      if (existing) return { record: existing, isFirst: false };
+      if (existing) {
+        // Eingeladene Nutzer gelten als freigegeben -> direkt freischalten.
+        if (existing.status === 'INVITED') {
+          const promoted = await prisma.appUser.update({
+            where: { id: existing.id },
+            data: { status: 'APPROVED', approvedAt: new Date(), inviteToken: null, inviteExpiresAt: null },
+          });
+          return { record: promoted, isFirst: false };
+        }
+        return { record: existing, isFirst: false };
+      }
 
       const count = await prisma.appUser.count();
       const first = count === 0;

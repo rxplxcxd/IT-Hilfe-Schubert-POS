@@ -5,6 +5,7 @@ import { google } from 'googleapis';
 import { prisma } from '@/lib/prisma';
 import { getAccessForCurrentUser } from '@/lib/access';
 import { getAuthedClientForUser, getUserToken, companyAddress, gmailErrorHint } from '@/lib/gmail';
+import { outgoingEmailHtml } from '@/lib/email-templates';
 
 function encodeHeader(value: string) {
   // RFC 2047 Encoding fuer Nicht-ASCII-Zeichen im Header (z.B. Umlaute).
@@ -34,11 +35,27 @@ export async function POST(request: Request) {
     const compAddress = companyAddress((me as any)?.emailPrefix || '', domain);
     const companyName = settings?.companyName || 'IT-Hilfe Schubert';
     const fromAddress = compAddress || token?.email || '';
+    // Anzeigename = voller Name des Mitarbeiters (Leon moechte den Namen behalten,
+    // nur die Gmail-Adresse soll durch die Firmen-Adresse ersetzt werden).
+    const senderDisplay = (me as any)?.name || settings?.ownerName || companyName;
     const fromHeader = compAddress
-      ? `${encodeHeader(companyName)} <${fromAddress}>`
+      ? `${encodeHeader(senderDisplay)} <${fromAddress}>`
       : fromAddress;
 
     const { to, subject, body, inReplyTo, threadId } = await request.json();
+
+    // Gebrandeter Header + Footer (Signatur aus Kontaktdaten) um den Text legen.
+    const wrappedBody = outgoingEmailHtml(body || '', {
+      senderName: senderDisplay,
+      position: (me as any)?.position || ((me as any)?.role === 'ADMIN' ? 'Inhaber' : ''),
+      phone: (me as any)?.contactPhone || settings?.phone || '',
+      email: fromAddress,
+      companyName,
+      street: (me as any)?.contactStreet || settings?.street || '',
+      zip: (me as any)?.contactZip || settings?.zip || '',
+      city: (me as any)?.contactCity || settings?.city || '',
+      website: domain ? 'www.' + domain : '',
+    });
 
     const headers = [
       `To: ${to}`,
@@ -52,7 +69,7 @@ export async function POST(request: Request) {
       headers.push(`References: ${inReplyTo}`);
     }
 
-    const raw = Buffer.from(headers.join('\r\n') + '\r\n\r\n' + (body || ''))
+    const raw = Buffer.from(headers.join('\r\n') + '\r\n\r\n' + wrappedBody)
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')

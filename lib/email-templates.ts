@@ -289,3 +289,85 @@ export function welcomeEmployeeHtml(d: WelcomeEmailData) {
     <p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">Bei Fragen wende dich einfach an deinen Administrator. Viel Erfolg!</p>`;
   return layout('Willkommen bei IT-Hilfe Schubert!', inner, 'Automatische Willkommens-E-Mail von IT-Hilfe Schubert.');
 }
+
+// ============================================================================
+//  Ausgehende Mitarbeiter-E-Mails (Gmail-Tab) — gebrandeter Header + Footer
+// ============================================================================
+
+export interface OutgoingEmailSender {
+  senderName?: string;   // voller Name des Mitarbeiters (z.B. "Leon Schubert")
+  position?: string;     // Funktion/Rolle (z.B. "Inhaber", "Techniker")
+  phone?: string;        // Telefon (persoenlich oder Firma)
+  email?: string;        // Firmen-E-Mail (z.B. admin@ithilfeschubert.xyz)
+  companyName?: string;  // Firmenname
+  street?: string;       // Firmen-/Kontaktadresse
+  zip?: string;
+  city?: string;
+  website?: string;      // z.B. www.ithilfeschubert.xyz
+}
+
+/**
+ * Prueft grob, ob der Text bereits HTML enthaelt. Falls nicht (reiner Text
+ * aus dem Textfeld), werden Zeilenumbrueche in <br> gewandelt.
+ */
+function normalizeBody(body: string): string {
+  const b = body || '';
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(b);
+  if (looksLikeHtml) return b;
+  const esc = b
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return esc.replace(/\r\n|\r|\n/g, '<br>');
+}
+
+/**
+ * Umschliesst den vom Mitarbeiter verfassten Text mit einem gebrandeten
+ * Header und einem aus den Kontaktdaten erzeugten Signatur-Footer.
+ * Farb- und Stilcharakter passend zur App (Blau-Theme #1e40af).
+ */
+export function outgoingEmailHtml(bodyText: string, s: OutgoingEmailSender): string {
+  const company = s.companyName || 'IT-Hilfe Schubert';
+  const name = s.senderName || 'Leon Schubert';
+  const inner = normalizeBody(bodyText);
+
+  const addressParts = [s.street, [s.zip, s.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const contactLines: string[] = [];
+  if (s.position) contactLines.push(`<span style="color:#64748b;">${s.position}</span>`);
+  if (s.phone) contactLines.push(`Tel: <a href="tel:${s.phone.replace(/\s+/g, '')}" style="color:${BRAND};text-decoration:none;">${s.phone}</a>`);
+  if (s.email) contactLines.push(`<a href="mailto:${s.email}" style="color:${BRAND};text-decoration:none;">${s.email}</a>`);
+  if (s.website) contactLines.push(`<a href="https://${s.website}" style="color:${BRAND};text-decoration:none;">${s.website}</a>`);
+
+  const signature = `
+    <table style="width:100%;border-collapse:collapse;margin:0;">
+      <tr>
+        <td style="width:4px;background:${BRAND};border-radius:2px;"></td>
+        <td style="padding-left:16px;">
+          <div style="font-size:16px;font-weight:700;color:#0f172a;">${name}</div>
+          <div style="font-size:13px;color:${BRAND};font-weight:600;margin:2px 0 8px;">${company}</div>
+          <div style="font-size:13px;color:#475569;line-height:1.7;">${contactLines.join('<br>')}</div>
+          ${addressParts ? `<div style="font-size:12px;color:#94a3b8;margin-top:8px;">${addressParts}</div>` : ''}
+        </td>
+      </tr>
+    </table>`;
+
+  return `<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:${BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+  <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
+    <div style="background:linear-gradient(135deg,${BRAND},${BRAND_DARK});border-radius:16px 16px 0 0;padding:22px 28px;">
+      <div style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:0.3px;">${company}</div>
+      <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#bfdbfe;font-weight:600;margin-top:2px;">IT-Service &amp; Support</div>
+    </div>
+    <div style="background:#ffffff;padding:28px;font-size:15px;line-height:1.65;color:#1e293b;">
+      ${inner}
+    </div>
+    <div style="background:#f8fafc;padding:22px 28px;border-top:1px solid #e2e8f0;">
+      ${signature}
+    </div>
+    <div style="background:#ffffff;border-radius:0 0 16px 16px;padding:14px 28px;border-top:1px solid #f1f5f9;">
+      <div style="font-size:11px;color:#94a3b8;line-height:1.6;">Diese E-Mail wurde von ${company} versendet. Wenn Sie diese Nachricht irrtuemlich erhalten haben, loeschen Sie sie bitte.</div>
+    </div>
+  </div>
+</body></html>`;
+}

@@ -60,7 +60,8 @@ function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-blue-700 flex items-center justify-center text-white text-2xl font-bold">IT</div>
+          <img src="/login-logo.svg" alt="Logo" className="mx-auto mb-4 h-14 w-14 rounded-xl" />
+
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">IT-Hilfe Schubert</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Bitte anmelden, um fortzufahren</p>
         </div>

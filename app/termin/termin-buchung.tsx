@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CalendarDays, Clock, User, Phone, Mail, MapPin, MessageSquare, ChevronLeft, ChevronRight, CheckCircle2, Monitor, Shield, Wrench } from 'lucide-react';
+import { CalendarDays, Clock, User, Phone, Mail, MapPin, MessageSquare, ChevronLeft, ChevronRight, CheckCircle2, Monitor, Shield, Wrench, BadgeCheck, Tag, Quote, ChevronDown, Star } from 'lucide-react';
 
 interface Props {
   companyName: string;
@@ -35,6 +35,7 @@ export function TerminBuchung({ companyName, ownerName, phone, email, logoUrl, e
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [activeDays, setActiveDays] = useState<Set<number>>(new Set());
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   // Fetch which days of week have active time slots
   useEffect(() => {
@@ -119,8 +120,31 @@ export function TerminBuchung({ companyName, ownerName, phone, email, logoUrl, e
 
   // LANDING PAGE
   if (step === 0) {
+    const testimonials = [
+      { text: 'Schnelle Hilfe, mein PC läuft wieder wie neu! Danke Leon!', name: 'Marina K., Dresden' },
+      { text: 'Kompetenter Service und faire Preise. Absolut empfehlenswert.', name: 'Stefan P., Radebeul' },
+      { text: 'Endlich jemand, der IT verständlich erklärt. Top!', name: 'Andrea M., Bautzen' },
+      { text: 'Vor-Ort-Termin am selben Tag – super unkompliziert.', name: 'Thomas R., Kamenz' },
+      { text: 'Mein Laptop war gerettet, die Datenrettung hat geklappt.', name: 'Petra L., Görlitz' },
+    ];
+    const faqs = [
+      { q: 'Wie schnell sind Sie vor Ort?', a: 'In der Regel innerhalb von 24 Stunden.' },
+      { q: 'Was kostet eine Diagnose?', a: 'Wir bieten eine Festpreisdiagnose für 49 €.' },
+      { q: 'Reparieren Sie auch Apple-Geräte?', a: 'Ja, wir bieten auch Mac-Service an.' },
+      { q: 'Kommen Sie auch zu mir nach Hause?', a: 'Ja, wir bieten Vor-Ort-Service in der gesamten Region an.' },
+    ];
+    const catalog = [
+      { title: 'PC & Laptop Reparatur', items: ['OS-Neuinstallation', 'Hardware-Upgrades', 'Datenrettung', 'Fehlerdiagnose'] },
+      { title: 'Virenschutz & Sicherheit', items: ['Malware-Entfernung', 'Sicherheits-Audits', 'Backup-Lösungen', 'Firewall-Konfiguration'] },
+      { title: 'Einrichtung & Installation', items: ['WLAN-Optimierung', 'Drucker-Einrichtung', 'Software-Konfiguration', 'Heimnetzwerk-Setup'] },
+    ];
     return (
       <div className="flex-1 bg-gradient-to-br from-blue-50 via-white to-blue-50">
+        <style jsx>{`
+          @keyframes tb-marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+          .tb-marquee-track { display: flex; width: max-content; animation: tb-marquee 32s linear infinite; }
+          .tb-marquee-wrap:hover .tb-marquee-track { animation-play-state: paused; }
+        `}</style>
         {/* Hero */}
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-800" />
@@ -162,8 +186,105 @@ export function TerminBuchung({ companyName, ownerName, phone, email, logoUrl, e
             Jetzt Termin buchen
           </button>
 
+          {/* Warum IT-Hilfe Schubert */}
+          <div className="mt-6 bg-white rounded-2xl shadow-lg p-6 anim-fade-up">
+            <h2 className="font-display font-semibold text-lg mb-5 text-gray-900">Warum IT-Hilfe Schubert?</h2>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                { icon: MapPin, title: 'Lokal & Schnell', desc: 'Ihr Ansprechpartner in der Region' },
+                { icon: BadgeCheck, title: 'Zertifizierter Experte', desc: 'Über 10 Jahre Erfahrung' },
+                { icon: Tag, title: 'Transparente Preise', desc: 'Keine versteckten Kosten' },
+              ].map((w, i) => (
+                <div key={i} className="flex flex-col items-center">
+                  <div className="w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center mb-2">
+                    <w.icon className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <p className="font-semibold text-xs text-gray-900 leading-tight">{w.title}</p>
+                  <p className="text-[11px] text-gray-500 mt-1 leading-snug">{w.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Unser Versprechen / Gründer */}
+          <div className="mt-6 bg-white rounded-2xl shadow-lg p-6 anim-fade-up">
+            <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start">
+              <img src="/founder.jpg" alt={ownerName} className="w-28 h-28 rounded-2xl object-cover shrink-0 shadow-sm" />
+              <div>
+                <h2 className="font-display font-semibold text-lg mb-2 text-gray-900">Unser Versprechen an Sie</h2>
+                <p className="text-sm text-gray-600 leading-relaxed">Hallo, ich bin {ownerName}. Ihr Partner für alle IT-Herausforderungen – ich sorge dafür, dass Ihre Technik funktioniert.</p>
+                <p className="text-sm text-gray-600 leading-relaxed mt-2">Persönlich, ehrlich und unkompliziert. Ich freue mich auf Ihre Anfrage!</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Dienstleistungskatalog */}
+          <div className="mt-6 bg-white rounded-2xl shadow-lg p-6 anim-fade-up">
+            <h2 className="font-display font-semibold text-lg mb-4 text-gray-900">Dienstleistungskatalog</h2>
+            <div className="grid grid-cols-1 gap-4">
+              {catalog.map((c, i) => (
+                <div key={i} className="rounded-xl bg-blue-50/60 p-4">
+                  <p className="font-semibold text-sm text-gray-900 mb-2">{c.title}</p>
+                  <ul className="space-y-1">
+                    {c.items.map((it, j) => (
+                      <li key={j} className="flex items-center gap-2 text-xs text-gray-600">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" /> {it}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Testimonials (auto-scroll) */}
+          <div className="mt-6 anim-fade-up">
+            <h2 className="font-display font-semibold text-lg mb-4 text-gray-900 px-1">Was Kunden sagen</h2>
+            <div className="tb-marquee-wrap overflow-hidden -mx-6 px-6">
+              <div className="tb-marquee-track gap-3">
+                {[...testimonials, ...testimonials].map((t, i) => (
+                  <div key={i} className="w-64 shrink-0 bg-white rounded-2xl shadow-md p-4">
+                    <div className="flex gap-0.5 mb-2">
+                      {[0, 1, 2, 3, 4].map((s) => <Star key={s} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />)}
+                    </div>
+                    <Quote className="w-4 h-4 text-blue-200 mb-1" />
+                    <p className="text-sm text-gray-700 leading-snug">{t.text}</p>
+                    <p className="text-xs text-gray-400 mt-2">– {t.name}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* FAQ */}
+          <div className="mt-6 bg-white rounded-2xl shadow-lg p-6 anim-fade-up">
+            <h2 className="font-display font-semibold text-lg mb-3 text-gray-900">Häufig gestellte Fragen</h2>
+            <div className="divide-y divide-gray-100">
+              {faqs.map((f, i) => (
+                <div key={i} className="py-3">
+                  <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full flex items-center justify-between gap-3 text-left">
+                    <span className="font-medium text-sm text-gray-900">{f.q}</span>
+                    <ChevronDown className={`w-4 h-4 text-blue-600 shrink-0 transition-transform ${openFaq === i ? 'rotate-180' : ''}`} />
+                  </button>
+                  {openFaq === i && <p className="text-sm text-gray-600 mt-2 leading-relaxed">{f.a}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Zweiter CTA */}
+          <div className="mt-8 text-center anim-fade-up">
+            <p className="text-sm text-gray-600 mb-3">Überzeugt? Buchen Sie Ihren Termin jetzt online!</p>
+            <button
+              onClick={() => setStep(1)}
+              className="inline-flex items-center gap-2 px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/30 transition-all active:scale-[0.98]"
+            >
+              <CalendarDays className="w-5 h-5" /> Jetzt buchen
+            </button>
+          </div>
+
           {/* Kontakt */}
-          <div className="mt-6 bg-white rounded-2xl shadow-lg p-6 anim-fade-up-d4">
+          <div className="mt-8 bg-white rounded-2xl shadow-lg p-6 anim-fade-up">
             <h3 className="font-display font-semibold text-sm mb-3 text-gray-900">Kontakt</h3>
             <div className="space-y-2 text-sm text-gray-600">
               <p className="flex items-center gap-2"><User className="w-4 h-4 text-blue-600" /> {ownerName}</p>

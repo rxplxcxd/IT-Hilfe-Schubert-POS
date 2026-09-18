@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 
 export const dynamic = 'force-dynamic';
@@ -60,8 +61,27 @@ function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src="/login-logo.PNG" alt="Logo" className="mx-auto mb-4 h-14 w-14 rounded-xl" />
-
+          <div className="mx-auto mb-4 flex items-center justify-center">
+            <div className="relative w-40 aspect-[1778/916] rounded-2xl bg-blue-800 shadow-lg shadow-blue-900/20 p-3 overflow-hidden">
+              <motion.img
+                src="/login-logo-top.png"
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-3 w-[calc(100%-1.5rem)] h-[calc(100%-1.5rem)] object-contain"
+                initial={{ y: '-70%', opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.7, ease: 'easeOut', delay: 0.15 }}
+              />
+              <motion.img
+                src="/login-logo-bottom.png"
+                alt="IT-Hilfe Schubert Logo"
+                className="absolute inset-3 w-[calc(100%-1.5rem)] h-[calc(100%-1.5rem)] object-contain"
+                initial={{ y: '70%', opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.7, ease: 'easeOut', delay: 0.15 }}
+              />
+            </div>
+          </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">IT-Hilfe Schubert</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Bitte anmelden, um fortzufahren</p>
         </div>

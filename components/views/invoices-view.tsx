@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
+import { CheckoutDialog } from '@/components/checkout-dialog';
 
 interface Invoice {
   id: number;
@@ -47,6 +48,7 @@ export function InvoicesView({ viewInvoiceId, onViewInvoice }: {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const fetchInvoices = useCallback(async () => {
     try {
@@ -298,14 +300,24 @@ export function InvoicesView({ viewInvoiceId, onViewInvoice }: {
         {/* Actions */}
         <div className="space-y-2">
           {inv?.status === 'OFFEN' && !inv?.isCancellation && (
-            <Button
-              onClick={() => handleMarkPaid(inv?.id)}
-              disabled={markingPaid}
-              className="w-full gap-2 bg-green-600 hover:bg-green-700"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {markingPaid ? 'Wird markiert...' : 'Als bezahlt markieren'}
-            </Button>
+            <>
+              <Button
+                onClick={() => setShowCheckout(true)}
+                className="w-full gap-2 bg-blue-800 hover:bg-blue-900"
+              >
+                <CreditCard className="w-4 h-4" />
+                Kassieren
+              </Button>
+              <Button
+                onClick={() => handleMarkPaid(inv?.id)}
+                disabled={markingPaid}
+                variant="outline"
+                className="w-full gap-2 text-green-700 border-green-200 hover:bg-green-50 dark:border-green-800 dark:hover:bg-green-950"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {markingPaid ? 'Wird markiert...' : 'Als bezahlt markieren'}
+              </Button>
+            </>
           )}
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -338,6 +350,13 @@ export function InvoicesView({ viewInvoiceId, onViewInvoice }: {
             </Button>
           )}
         </div>
+
+        <CheckoutDialog
+          invoice={inv}
+          open={showCheckout}
+          onClose={() => setShowCheckout(false)}
+          onPaid={() => { fetchInvoices(); }}
+        />
       </div>
     );
   }

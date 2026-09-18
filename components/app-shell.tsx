@@ -39,12 +39,12 @@ function CountBadge({ count, ring = 'ring-card', className = '' }: { count: numb
   );
 }
 
-export function AppShell({ isAdmin = false, employeeNo = null }: { isAdmin?: boolean; employeeNo?: number | null }) {
+export function AppShell({ isAdmin = false, employeeNo = null, userName = null }: { isAdmin?: boolean; employeeNo?: number | null; userName?: string | null }) {
   return (
     <NotificationProvider>
       <VersionWatcher />
       <EmployeeGate isAdmin={isAdmin}>
-        <AppShellInner isAdmin={isAdmin} employeeNo={employeeNo} />
+        <AppShellInner isAdmin={isAdmin} employeeNo={employeeNo} userName={userName} />
       </EmployeeGate>
     </NotificationProvider>
   );
@@ -60,7 +60,8 @@ interface ViewState {
   composeEmailTo?: string | null;
 }
 
-function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: number | null }) {
+function AppShellInner({ isAdmin, employeeNo, userName }: { isAdmin: boolean; employeeNo: number | null; userName: string | null }) {
+  const displayName = (userName ?? '').trim() || 'Kassensystem';
   const router = useRouter();
   const { pendingUsers, openAppointments, dueReminders, openTickets, total, refresh } = useNotifications();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
@@ -261,7 +262,7 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
           <div className="w-9 h-9 bg-primary text-primary-foreground rounded-lg flex items-center justify-center text-sm font-bold">IS</div>
           <div className="min-w-0">
             <h1 className="font-display text-sm font-bold leading-tight truncate">IT-Hilfe Schubert</h1>
-            <p className="text-xs text-muted-foreground">Kassensystem</p>
+            <p className="text-xs text-muted-foreground truncate">{displayName}</p>
           </div>
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
@@ -293,7 +294,7 @@ function AppShellInner({ isAdmin, employeeNo }: { isAdmin: boolean; employeeNo: 
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 lg:hidden">
             <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-sm font-bold">IS</div>
-            <div><h1 className="font-display text-base font-bold leading-tight">IT-Hilfe Schubert</h1><p className="text-xs opacity-80">Kassensystem</p></div>
+            <div><h1 className="font-display text-base font-bold leading-tight">IT-Hilfe Schubert</h1><p className="text-xs opacity-80 truncate max-w-[180px]">{displayName}</p></div>
           </div>
           <h1 className="hidden lg:block font-display text-lg font-bold">{activeLabel}</h1>
         </div>

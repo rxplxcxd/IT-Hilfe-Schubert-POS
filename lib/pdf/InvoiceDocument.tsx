@@ -17,7 +17,7 @@ function formatDateDE(date: Date | string | null | undefined): string {
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, color: '#1a1a1a', fontFamily: 'Helvetica', lineHeight: 1.5 },
   header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
-  logo: { maxHeight: 60, maxWidth: 200, marginBottom: 6, objectFit: 'contain' },
+  logo: { maxHeight: 60, maxWidth: 200, marginBottom: 6, objectFit: 'contain', alignSelf: 'flex-start' },
   companyName: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: '#1e40af', marginBottom: 4 },
   company: { fontSize: 9, color: '#666' },
   right: { alignItems: 'flex-end' },

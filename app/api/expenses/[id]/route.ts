@@ -20,6 +20,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         amount: parseFloat(body.amount) || 0,
         date: body.date ? new Date(body.date) : undefined,
         reference: body.reference ?? '',
+        elsterCategory: body.elsterCategory ?? '',
+        assetType: body.assetType ?? '',
+        afaYears: body.afaYears ? parseInt(String(body.afaYears)) || null : null,
+        afaStart: body.afaStart ? new Date(body.afaStart) : (body.assetType === 'AFA' && body.date ? new Date(body.date) : null),
       },
     });
     return NextResponse.json(expense);

@@ -163,6 +163,14 @@ model Expense {
   amount      Float
   date        DateTime @default(now())
   reference   String   @default("") // e.g. invoice number or receipt
+  // ELSTER/EUeR-Zuordnung fuer die Steuererklaerung (Anlage EUeR).
+  elsterCategory String @default("")
+  // Anlagegut-Behandlung: "" (normale BA), SOFORT, GWG, AFA (Abschreibung).
+  assetType   String   @default("")
+  // Nutzungsdauer in Jahren fuer die lineare AfA.
+  afaYears    Int?
+  // Beginn der Abschreibung (Anschaffungsdatum).
+  afaStart    DateTime?
   ownerId     Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -318,6 +326,9 @@ model Settings {
   bic            String @default("")
   googleClientId     String @default("")
   googleClientSecret String @default("")
+  // Revolut-Zahlungsschluessel (verschluesselt gespeichert) + Modus (live/sandbox).
+  revolutSecretKey   String @default("")
+  revolutMode        String @default("live")
   // Domain fuer die Firmen-E-Mail-Adressen der Mitarbeiter.
   mailDomain         String @default("ithilfeschubert.xyz")
   // Default disclaimer text for orders
@@ -551,4 +562,20 @@ model EmailMessage {
 
   @@unique([ownerId, gmailId])
   @@index([ownerId, folder, sentAt])
+}
+
+// ---------------------------------------------------------------------------
+// Wochenaufgaben (Batch 4): einfache wiederkehrende To-dos fuer den Admin,
+// z.B. "Kasse zaehlen", "Belege sortieren". Pro Mitarbeiter (ownerId).
+// ---------------------------------------------------------------------------
+model WeeklyTask {
+  id        Int      @id @default(autoincrement())
+  title     String
+  weekday   Int?     // 0=So ... 6=Sa (optional)
+  done      Boolean  @default(false)
+  ownerId   Int?     // AppUser.id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
+
+  @@index([ownerId])
 }

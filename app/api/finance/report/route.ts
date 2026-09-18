@@ -52,9 +52,15 @@ export async function GET(request: Request) {
       // Manuelle Einnahmen/Ausgaben im Jahr
       prisma.expense.findMany({
         where: { date: { gte: yStart, lt: yEnd }, ...scope.ownerWhere },
-        select: { type: true, category: true, amount: true, date: true },
+        select: { type: true, category: true, amount: true, date: true, assetType: true, afaYears: true, afaStart: true, description: true },
       }),
     ]);
+
+    // Anlagegueter mit linearer AfA (jahresuebergreifend, unabhaengig vom Kaufjahr).
+    const afaAssets = await prisma.expense.findMany({
+      where: { type: 'AUSGABE', assetType: 'AFA', ...scope.ownerWhere },
+      select: { id: true, description: true, amount: true, afaYears: true, afaStart: true, date: true, elsterCategory: true },
+    });
 
     // --- 1. Offene Posten ---
     const offenePosten = openInvoices.map((inv) => {
@@ -82,9 +88,37 @@ export async function GET(request: Request) {
       const cat = e.category || 'Sonstiges';
       if (e.type === 'EINNAHME') {
         incomeByCategory[cat] = (incomeByCategory[cat] || 0) + e.amount;
+      } else if ((e as any).assetType === 'AFA') {
+        // Anlagegueter werden NICHT sofort voll abgezogen, sondern ueber die
+        // Nutzungsdauer abgeschrieben (weiter unten als AfA erfasst).
+        continue;
       } else {
         expenseByCategory[cat] = (expenseByCategory[cat] || 0) + e.amount;
       }
+    }
+
+    // --- AfA (lineare Abschreibung) fuer das gewaehlte Jahr ---
+    const afaSchedule: { id: number; description: string; amount: number; afaYears: number; startYear: number; yearlyAfa: number; }[] = [];
+    let afaYearTotal = 0;
+    for (const a of afaAssets) {
+      const years = a.afaYears && a.afaYears > 0 ? a.afaYears : 1;
+      const start = a.afaStart ? new Date(a.afaStart) : new Date(a.date);
+      const startYear = start.getFullYear();
+      const endYear = startYear + years - 1;
+      if (year < startYear || year > endYear) continue;
+      const yearlyAfa = a.amount / years;
+      afaYearTotal += yearlyAfa;
+      afaSchedule.push({
+        id: a.id,
+        description: a.description || 'Anlagegut',
+        amount: a.amount,
+        afaYears: years,
+        startYear,
+        yearlyAfa,
+      });
+    }
+    if (afaYearTotal > 0) {
+      expenseByCategory['AfA (Abschreibung)'] = (expenseByCategory['AfA (Abschreibung)'] || 0) + afaYearTotal;
     }
     const incomeTotal = Object.values(incomeByCategory).reduce((s, v) => s + v, 0);
     const expenseTotal = Object.values(expenseByCategory).reduce((s, v) => s + v, 0);
@@ -99,6 +133,7 @@ export async function GET(request: Request) {
     for (const e of expenses) {
       const m = new Date(e.date).getMonth();
       if (e.type === 'EINNAHME') months[m].einnahmen += e.amount;
+      else if ((e as any).assetType === 'AFA') continue; // AfA nicht als Monats-Cashflow
       else months[m].ausgaben += e.amount;
     }
 
@@ -115,6 +150,8 @@ export async function GET(request: Request) {
         profit: incomeTotal - expenseTotal,
       },
       months: months.map((m) => ({ ...m, saldo: m.einnahmen - m.ausgaben })),
+      afaSchedule,
+      afaYearTotal,
     });
   } catch (error: any) {
     console.error('finance/report:', error?.message);

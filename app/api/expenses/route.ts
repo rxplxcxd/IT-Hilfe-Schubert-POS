@@ -43,6 +43,10 @@ export async function POST(request: Request) {
         amount: parseFloat(body.amount) || 0,
         date: body.date ? new Date(body.date) : new Date(),
         reference: body.reference || '',
+        elsterCategory: body.elsterCategory || '',
+        assetType: body.assetType || '',
+        afaYears: body.afaYears ? parseInt(String(body.afaYears)) || null : null,
+        afaStart: body.afaStart ? new Date(body.afaStart) : (body.assetType === 'AFA' && body.date ? new Date(body.date) : null),
         ownerId: scope.access.id,
       },
     });

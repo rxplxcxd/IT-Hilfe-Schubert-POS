@@ -11,7 +11,22 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 
 interface Expense {
   id: number; type: string; category: string; description: string; amount: number; date: string; reference: string;
+  elsterCategory?: string; assetType?: string; afaYears?: number | null; afaStart?: string | null;
 }
+
+// ELSTER-/EUeR-Kategorien (Anlage EUeR) fuer die Steuererklaerung.
+const ELSTER_CATEGORIES = [
+  'Waren/Rohstoffe/Hilfsstoffe',
+  'Bezogene Fremdleistungen',
+  'Fahrtkosten/KFZ-Kosten',
+  'Telekommunikation',
+  'Miete/Raumkosten',
+  'Werbe-/Reisekosten',
+  'Versicherungen/Beiträge',
+  'AfA (Abschreibung)',
+  'Geringwertige Wirtschaftsgüter (GWG)',
+  'Sonstige unbeschränkt abziehbare BA',
+];
 
 type FinanceMode = 'tracker' | 'offen' | 'euer';
 
@@ -24,6 +39,8 @@ interface FinanceReport {
   overdueTotal: number;
   euer: { incomeByCategory: CatAmount[]; expenseByCategory: CatAmount[]; incomeTotal: number; expenseTotal: number; profit: number; };
   months: { month: number; einnahmen: number; ausgaben: number; saldo: number; }[];
+  afaSchedule?: { id: number; description: string; amount: number; afaYears: number; startYear: number; yearlyAfa: number; }[];
+  afaYearTotal?: number;
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -46,7 +63,7 @@ export function FinancesView() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState({ type: 'AUSGABE', category: '', description: '', amount: '', date: new Date().toISOString().split('T')[0], reference: '' });
+  const [form, setForm] = useState({ type: 'AUSGABE', category: '', description: '', amount: '', date: new Date().toISOString().split('T')[0], reference: '', elsterCategory: '', assetType: '', afaYears: '' });
   const [saving, setSaving] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`; });
   const [filter, setFilter] = useState('ALL');
@@ -85,7 +102,7 @@ export function FinancesView() {
 
   const startEdit = (exp: Expense) => {
     setEditId(exp.id);
-    setForm({ type: exp.type, category: exp.category, description: exp.description, amount: exp.amount.toString(), date: exp.date.split('T')[0], reference: exp.reference });
+    setForm({ type: exp.type, category: exp.category, description: exp.description, amount: exp.amount.toString(), date: exp.date.split('T')[0], reference: exp.reference, elsterCategory: exp.elsterCategory ?? '', assetType: exp.assetType ?? '', afaYears: exp.afaYears ? String(exp.afaYears) : '' });
     setEditing(true);
   };
 
@@ -122,6 +139,32 @@ export function FinancesView() {
             <div><Label>Datum</Label><Input type="date" value={form.date} onChange={(e: any) => setForm({ ...form, date: e.target.value })} /></div>
           </div>
           <div><Label>Referenz</Label><Input value={form.reference} onChange={(e: any) => setForm({ ...form, reference: e.target.value })} placeholder="z.B. Rechnungsnr." /></div>
+
+          {form.type === 'AUSGABE' && (
+            <div className="pt-2 mt-1 border-t space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground">Steuerliche Zuordnung (optional)</p>
+              <div><Label>ELSTER-/EÜR-Kategorie</Label>
+                <select value={form.elsterCategory} onChange={(e: any) => setForm({ ...form, elsterCategory: e.target.value })} className="w-full mt-1 h-10 px-3 text-sm border border-input rounded-md bg-background">
+                  <option value="">Keine Zuordnung</option>
+                  {ELSTER_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div><Label>Anlagegut / Abschreibung</Label>
+                <select value={form.assetType} onChange={(e: any) => setForm({ ...form, assetType: e.target.value })} className="w-full mt-1 h-10 px-3 text-sm border border-input rounded-md bg-background">
+                  <option value="">Normale Betriebsausgabe (sofort)</option>
+                  <option value="GWG">Geringwertiges Wirtschaftsgut (GWG, Sofortabzug)</option>
+                  <option value="AFA">Anlagegut – über Nutzungsdauer abschreiben (AfA)</option>
+                </select>
+              </div>
+              {form.assetType === 'AFA' && (
+                <div><Label>Nutzungsdauer (Jahre)</Label>
+                  <Input type="number" min="1" step="1" inputMode="numeric" value={form.afaYears} onChange={(e: any) => setForm({ ...form, afaYears: e.target.value })} placeholder="z.B. 3" />
+                  <p className="text-[11px] text-muted-foreground mt-1">Die AfA verteilt den Betrag linear über die Nutzungsdauer (Beginn = Datum oben).</p>
+                </div>
+              )}
+            </div>
+          )}
+
           <Button onClick={handleSave} disabled={saving} className="w-full gap-2"><Save className="w-4 h-4" />{saving ? 'Speichern...' : 'Speichern'}</Button>
         </CardContent></Card>
       </div>
@@ -133,7 +176,7 @@ export function FinancesView() {
       <div className="flex items-center justify-between">
         <h2 className="font-display font-semibold text-lg">Finanzen</h2>
         {mode === 'tracker' && (
-          <Button size="sm" onClick={() => { setEditId(null); setForm({ type: 'AUSGABE', category: '', description: '', amount: '', date: new Date().toISOString().split('T')[0], reference: '' }); setEditing(true); }} className="gap-1"><Plus className="w-4 h-4" /> Neu</Button>
+          <Button size="sm" onClick={() => { setEditId(null); setForm({ type: 'AUSGABE', category: '', description: '', amount: '', date: new Date().toISOString().split('T')[0], reference: '', elsterCategory: '', assetType: '', afaYears: '' }); setEditing(true); }} className="gap-1"><Plus className="w-4 h-4" /> Neu</Button>
         )}
       </div>
 
@@ -367,8 +410,25 @@ function EuerPanel() {
           ))}
         </CardContent></Card>
 
+        {/* AfA-Abschreibungen fuer das Jahr */}
+        {data.afaSchedule && data.afaSchedule.length > 0 && (
+          <Card className="shadow-sm"><CardContent className="p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-amber-600">Abschreibungen (AfA) {data.year}</p>
+              <p className="text-sm font-bold text-amber-600">{formatCurrency(data.afaYearTotal ?? 0)}</p>
+            </div>
+            {data.afaSchedule.map((a) => (
+              <div key={a.id} className="flex justify-between text-sm gap-2">
+                <span className="text-muted-foreground truncate">{a.description} <span className="text-[10px]">({formatCurrency(a.amount)} / {a.afaYears} J.)</span></span>
+                <span className="font-medium whitespace-nowrap">{formatCurrency(a.yearlyAfa)}</span>
+              </div>
+            ))}
+            <p className="text-[10px] text-muted-foreground leading-relaxed pt-1">Lineare AfA: Anschaffungskosten gleichmäßig über die Nutzungsdauer verteilt. Der Jahresbetrag ist bereits in den Betriebsausgaben oben enthalten.</p>
+          </CardContent></Card>
+        )}
+
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          Diese EÜR-Vorschau folgt dem Zufluss-/Abfluss-Prinzip (bezahlte Rechnungen nach Zahldatum). Sie ersetzt keine steuerliche Beratung — bitte final mit dem Steuerberater abstimmen.
+          Diese EÜR-Vorschau folgt dem Zufluss-/Abfluss-Prinzip (bezahlte Rechnungen nach Zahldatum); Anlagegüter werden über die AfA abgeschrieben, die ELSTER-Kategorien orientieren sich an der Anlage EÜR. Alle Angaben sind eine unverbindliche Vorschau und ersetzen keine steuerliche Beratung — bitte final mit dem Steuerberater abstimmen.
         </p>
       </>)}
     </div>

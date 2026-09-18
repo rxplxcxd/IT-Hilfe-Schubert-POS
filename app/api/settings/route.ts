@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAccessForCurrentUser } from '@/lib/access';
+import { encrypt } from '@/lib/crypto';
 
 async function loadGlobalSettings() {
   let settings = await prisma.settings.findUnique({ where: { id: 1 } });
@@ -72,6 +73,15 @@ export async function GET() {
         if (!s) return '';
         const okSuffix = s.endsWith('.apps.googleusercontent.com');
         return `${s.length} Zeichen${okSuffix ? ' · endet auf .apps.googleusercontent.com' : ' · endet NICHT auf .apps.googleusercontent.com'}`;
+      })(),
+      revolutMode: (settings as any)?.revolutMode ?? 'live',
+      revolutConfigured: !!(settings as any)?.revolutSecretKey,
+      revolutSecretKey: (settings as any)?.revolutSecretKey ? '••••••••' : '',
+      revolutSecretKeyHint: (() => {
+        const s = ((settings as any)?.revolutSecretKey ?? '').trim();
+        if (!s) return '';
+        const okPrefix = s.startsWith('enc::');
+        return `hinterlegt${okPrefix ? ' · verschlüsselt gespeichert' : ''}`;
       })(),
       mailDomain: (settings as any)?.mailDomain ?? 'ithilfeschubert.xyz',
       disclaimerDefaultText: (settings as any)?.disclaimerDefaultText ?? '',
@@ -147,6 +157,8 @@ export async function PUT(request: Request) {
         ...(data?.hqZip !== undefined ? { hqZip: data.hqZip } : {}),
         ...(data?.hqCity !== undefined ? { hqCity: data.hqCity } : {}),
         ...(data?.mailDomain !== undefined ? { mailDomain: data.mailDomain } : {}),
+        ...(data?.revolutSecretKey && !String(data.revolutSecretKey).includes('••') ? { revolutSecretKey: encrypt(cleanCred(data.revolutSecretKey)) } : {}),
+        ...(data?.revolutMode !== undefined ? { revolutMode: data.revolutMode } : {}),
       },
       create: {
         id: 1,
@@ -171,6 +183,8 @@ export async function PUT(request: Request) {
         hqZip: data?.hqZip ?? '02694',
         hqCity: data?.hqCity ?? 'Malschwitz',
         mailDomain: data?.mailDomain ?? 'ithilfeschubert.xyz',
+        revolutSecretKey: (data?.revolutSecretKey && !String(data.revolutSecretKey).includes('••')) ? encrypt(cleanCred(data.revolutSecretKey)) : '',
+        revolutMode: data?.revolutMode ?? 'live',
       },
     });
 

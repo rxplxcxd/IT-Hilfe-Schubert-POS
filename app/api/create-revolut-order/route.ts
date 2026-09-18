@@ -2,11 +2,15 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { canAccessBeleg } from '@/lib/access';
+import { prisma } from '@/lib/prisma';
+import { decrypt } from '@/lib/crypto';
 
 /**
  * Erstellt eine Revolut-Merchant-Order fuer eine Rechnung und liefert die
- * checkout_url zurueck. Benoetigt die Umgebungsvariable REVOLUT_SECRET_KEY.
- * Optional REVOLUT_API_URL (Sandbox vs. Produktiv).
+ * checkout_url zurueck. Der Schluessel wird bevorzugt aus den in der Datenbank
+ * gespeicherten Einstellungen gelesen (verschluesselt), ersatzweise aus der
+ * Umgebungsvariable REVOLUT_SECRET_KEY. Der Modus (live/sandbox) kommt aus den
+ * Einstellungen bzw. optional aus REVOLUT_API_URL.
  */
 export async function POST(request: Request) {
   try {
@@ -23,16 +27,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 });
     }
 
-    const key = process.env.REVOLUT_SECRET_KEY;
+    // Schluessel + Modus bevorzugt aus der Datenbank (Admin-Einstellungen),
+    // ersatzweise aus den Umgebungsvariablen.
+    const settings = await prisma.settings.findUnique({ where: { id: 1 } }).catch(() => null);
+    const dbKey = (settings as any)?.revolutSecretKey ? decrypt((settings as any).revolutSecretKey) : '';
+    const mode = (settings as any)?.revolutMode || 'live';
+    const key = dbKey || process.env.REVOLUT_SECRET_KEY;
     if (!key) {
       return NextResponse.json(
-        { error: 'Revolut ist noch nicht konfiguriert (REVOLUT_SECRET_KEY fehlt).' },
+        { error: 'Revolut ist noch nicht konfiguriert. Bitte den Revolut-Schlüssel in den Einstellungen hinterlegen.' },
         { status: 400 },
       );
     }
 
-    // Basis-URL ueber String-Konkatenation (verhindert URL-Verfälschung)
-    const base = (process.env.REVOLUT_API_URL || ('https' + '://merchant.revolut.com')).replace(/\/$/, '');
+    // Basis-URL ueber String-Konkatenation (verhindert URL-Verfälschung).
+    // Reihenfolge: explizite Env-Variable > Modus aus den Einstellungen.
+    const defaultBase = mode === 'sandbox'
+      ? ('https' + '://sandbox-merchant.revolut.com')
+      : ('https' + '://merchant.revolut.com');
+    const base = (process.env.REVOLUT_API_URL || defaultBase).replace(/\/$/, '');
     const endpoint = base + '/api/orders';
 
     const res = await fetch(endpoint, {

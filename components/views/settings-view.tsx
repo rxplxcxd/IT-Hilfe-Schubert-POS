@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Save, Upload, Building2, CreditCard, Mail, FileText, Image as ImageIcon, CheckCircle2, Globe, Sun, Moon, Monitor, ClipboardList, MapPin, Users, ShieldCheck, LayoutDashboard } from 'lucide-react';
+import { Save, Upload, Building2, CreditCard, Mail, FileText, Image as ImageIcon, CheckCircle2, Globe, Sun, Moon, Monitor, ClipboardList, MapPin, Users, ShieldCheck, LayoutDashboard, ShieldAlert } from 'lucide-react';
 import { TeamSettings } from './team-settings';
 import { EmployeeManagement } from './employee-management';
 import { StartseiteSettings } from './startseite-settings';
+import { AdminSecurity } from './admin-security';
 import { useTheme } from 'next-themes';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,10 @@ interface SettingsData {
   googleClientSecret: string;
   googleClientSecretHint?: string;
   googleClientIdHint?: string;
+  revolutSecretKey?: string;
+  revolutSecretKeyHint?: string;
+  revolutMode?: string;
+  revolutConfigured?: boolean;
   mailDomain: string;
   disclaimerDefaultText: string;
   hqStreet: string;
@@ -46,7 +51,7 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
     taxInfo: 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
     invoiceHeader: '', logoUrl: '', resendApiKey: '',
     bankName: '', iban: '', bic: '',
-    googleClientId: '', googleClientSecret: '', mailDomain: 'ithilfeschubert.xyz',
+    googleClientId: '', googleClientSecret: '', revolutSecretKey: '', revolutMode: 'live', mailDomain: 'ithilfeschubert.xyz',
     disclaimerDefaultText: 'Der Kunde bestätigt, dass ein aktuelles Backup aller relevanten Daten existiert. Für etwaige Datenverluste während der Reparatur/Wartung wird keine Haftung übernommen. Der Kunde trägt das volle Risiko für nicht gesicherte Daten.',
     hqStreet: 'Alte Schulstr 4', hqZip: '02694', hqCity: 'Malschwitz',
   });
@@ -159,6 +164,7 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
       { id: 'gmail', label: 'Gmail', icon: Globe },
       { id: 'team', label: 'Team', icon: Users },
       { id: 'verwaltung', label: 'Verwaltung', icon: ShieldCheck },
+      { id: 'sicherheit', label: 'Sicherheit', icon: ShieldAlert },
     ] : []),
     { id: 'theme', label: 'Design', icon: Sun },
   ];
@@ -296,6 +302,50 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
             <div><Label>Bankname</Label><Input value={settings?.bankName ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), bankName: e?.target?.value ?? ''})} placeholder="z.B. Sparkasse Dresden" /></div>
             <div><Label>IBAN</Label><Input value={settings?.iban ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), iban: e?.target?.value ?? ''})} placeholder="DE..." className="font-mono" /></div>
             <div><Label>BIC</Label><Input value={settings?.bic ?? ''} onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), bic: e?.target?.value ?? ''})} placeholder="XXXDEFF" className="font-mono" /></div>
+
+            <div className="pt-3 mt-1 border-t">
+              <div className="flex items-center gap-2 mb-1">
+                <CreditCard className="w-4 h-4 text-primary" />
+                <Label className="text-sm font-semibold">Revolut-Kartenzahlung</Label>
+              </div>
+              <p className="text-[11px] text-muted-foreground mb-2">
+                Optional. Den geheimen Revolut-Merchant-Schlüssel hier hinterlegen, damit der
+                Bezahl-Button (Kartenzahlung) beim Kassieren funktioniert. Der Schlüssel wird
+                verschlüsselt in der Datenbank gespeichert – eine Speicherung als Vercel-Variable
+                ist NICHT zwingend nötig.
+              </p>
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs">Revolut Secret Key</Label>
+                  <Input
+                    type="password"
+                    value={settings?.revolutSecretKey ?? ''}
+                    onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), revolutSecretKey: e?.target?.value ?? ''})}
+                    placeholder="sk_live_..."
+                    className="font-mono"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  {settings?.revolutSecretKeyHint ? (
+                    <p className="text-[11px] text-muted-foreground mt-1">Gespeichert: {settings.revolutSecretKeyHint}</p>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground mt-1">Noch kein Schlüssel hinterlegt.</p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-xs">Modus</Label>
+                  <select
+                    value={settings?.revolutMode ?? 'live'}
+                    onChange={(e: any) => setSettings({...(settings ?? {} as SettingsData), revolutMode: e?.target?.value ?? 'live'})}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="live">Live (Produktiv)</option>
+                    <option value="sandbox">Sandbox (Test)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -387,6 +437,8 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
 
       {activeSection === 'verwaltung' && isAdmin && <EmployeeManagement />}
 
+      {activeSection === 'sicherheit' && isAdmin && <AdminSecurity />}
+
       {activeSection === 'theme' && (
         <Card className="shadow-sm">
           <CardContent className="p-4 space-y-4">
@@ -427,7 +479,7 @@ export function SettingsView({ isAdmin = false, initialSection }: { isAdmin?: bo
         </Card>
       )}
 
-      {activeSection !== 'theme' && activeSection !== 'team' && activeSection !== 'verwaltung' && activeSection !== 'startseite' && (
+      {activeSection !== 'theme' && activeSection !== 'team' && activeSection !== 'verwaltung' && activeSection !== 'sicherheit' && activeSection !== 'startseite' && (
         <Button onClick={handleSave} disabled={saving} className="w-full gap-2">
           <Save className="w-4 h-4" />
         {saving ? 'Wird gespeichert...' : 'Einstellungen speichern'}

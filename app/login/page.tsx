@@ -8,6 +8,9 @@ import { createClient } from '@/lib/supabase/client';
 
 export const dynamic = 'force-dynamic';
 
+// Butterweiche Ease-Out-Kurve für das Hereinfahren der Hände.
+const EASE_SOFT: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -58,59 +61,78 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
-      <div className="w-full max-w-sm">
+    <div className="relative min-h-screen overflow-hidden bg-[#0a0f1e] flex items-center justify-center px-4">
+      {/* Obere Hand: fährt langsam und weich von rechts oben herein, über dem Login-Feld. */}
+      <div className="pointer-events-none select-none absolute top-0 inset-x-0 flex justify-center">
+        <motion.img
+          src="/login-logo-top.png"
+          alt=""
+          aria-hidden="true"
+          className="w-[125%] max-w-xl h-auto"
+          initial={{ x: '58%', opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 1.7, ease: EASE_SOFT, delay: 0.15 }}
+        />
+      </div>
+
+      {/* Untere Hand: fährt langsam und weich von links unten herein, unter dem Login-Feld. */}
+      <div className="pointer-events-none select-none absolute bottom-0 inset-x-0 flex justify-center">
+        <motion.img
+          src="/login-logo-bottom.png"
+          alt="IT-Hilfe Schubert"
+          className="w-[125%] max-w-xl h-auto"
+          initial={{ x: '-58%', opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 1.7, ease: EASE_SOFT, delay: 0.35 }}
+        />
+      </div>
+
+      <div className="relative z-10 w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="mx-auto mb-4 flex items-center justify-center">
-            <div className="relative w-40 aspect-[1778/916] rounded-2xl bg-blue-800 shadow-lg shadow-blue-900/20 p-3 overflow-hidden">
-              <motion.img
-                src="/login-logo-top.png"
-                alt=""
-                aria-hidden="true"
-                className="absolute inset-3 w-[calc(100%-1.5rem)] h-[calc(100%-1.5rem)] object-contain"
-                initial={{ y: '-70%', opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.7, ease: 'easeOut', delay: 0.15 }}
-              />
-              <motion.img
-                src="/login-logo-bottom.png"
-                alt="IT-Hilfe Schubert Logo"
-                className="absolute inset-3 w-[calc(100%-1.5rem)] h-[calc(100%-1.5rem)] object-contain"
-                initial={{ y: '70%', opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.7, ease: 'easeOut', delay: 0.15 }}
-              />
-            </div>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">IT-Hilfe Schubert</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Bitte anmelden, um fortzufahren</p>
+          <motion.div
+            className="mx-auto mb-4 w-24 h-24 rounded-2xl bg-white p-2 flex items-center justify-center shadow-lg shadow-blue-950/40"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, ease: EASE_SOFT, delay: 0.5 }}
+          >
+            <img src="/login-logo-full.png" alt="IT-Hilfe Schubert Logo" className="w-full h-full object-contain" />
+          </motion.div>
+          <h1 className="text-2xl font-bold text-white">IT-Hilfe Schubert</h1>
+          <p className="text-sm text-slate-400 mt-1">Bitte anmelden, um fortzufahren</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-800 p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">E-Mail</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1">E-Mail</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-600"
               placeholder="name@beispiel.de"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Passwort</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Passwort</label>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-600"
               placeholder="••••••••"
             />
           </div>
 
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
           <button
             type="submit"
@@ -120,9 +142,9 @@ function LoginForm() {
             {loading ? 'Anmelden …' : 'Anmelden'}
           </button>
 
-          <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-center text-sm text-slate-400">
             Noch kein Konto?{' '}
-            <Link href="/register" className="text-blue-700 dark:text-blue-400 font-medium hover:underline">Registrieren</Link>
+            <Link href="/register" className="text-blue-400 font-medium hover:underline">Registrieren</Link>
           </p>
         </form>
       </div>
@@ -132,7 +154,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950" />}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0f1e]" />}>
       <LoginForm />
     </Suspense>
   );
